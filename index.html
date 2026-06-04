@@ -908,6 +908,20 @@
                     <label>スタッフ名</label>
                     <input type="text" id="staffName" placeholder="例: 田中 太郎"></div>
 
+                <div class="form-group">
+                    <label>担当</label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="workTypeService" name="workType" value="service" checked>
+                            <label for="workTypeService">通常</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="workTypePrep" name="workType" value="prep">
+                            <label for="workTypePrep">仕込み</label>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="availability-type-section">
                     <div class="form-group">
                         <label>勤務可能パターン</label>
@@ -991,11 +1005,17 @@
                     <label>週の最大勤務日数</label>
                     <input type="number" id="maxDaysPerWeek" min="1" max="7" value="5">
                 </div>
-                
+
+                <div class="form-group">
+                    <label>交通費（1回あたり）</label>
+                    <input type="number" id="transportationCost" min="0" step="1" value="0" placeholder="例: 500">
+                </div>
+                 
                 <div class="alert-info" style="padding: 10px; border-radius: 6px; margin-bottom: 20px;">
                     <strong>📌 勤務時間:</strong><br>
                     平日（月〜木）: 18:00-22:00<br>
-                    週末（金土日）・祝日: 17:00-22:00
+                    週末（金土日）・祝日: 17:00-22:00<br>
+                    仕込み: 12:00-17:00
                 </div>
 
                 <button class="btn btn-primary" onclick="addStaff()">スタッフを追加</button>
@@ -1016,6 +1036,14 @@
 
                 <div class="auto-shift-section">
                     <h3>シフト作成期間</h3>
+
+                    <div class="form-group">
+                        <label>作成するシフト</label>
+                        <select id="autoWorkType">
+                            <option value="service">通常</option>
+                            <option value="prep">仕込み</option>
+                        </select>
+                    </div>
                     
                     <div class="period-selector">
                         <select id="autoYear">
@@ -1058,7 +1086,7 @@
                     <div class="form-group">
                         <label>祝日（17:00-22:00になる日）</label>
                         <textarea id="holidays" placeholder="例:&#10;2026/2/11&#10;2026/2/23&#10;&#10;（1行に1日付、空欄でもOK）"></textarea>
-                        <small>祝日を入力すると、その日は17:00-22:00の営業時間になります</small>
+                        <small>通常シフトでは祝日を17:00-22:00にします。仕込みは12:00-17:00で作成します</small>
                     </div>
 
                     <h3 style="margin-top: 20px;">1日の必要人数</h3>
@@ -1084,10 +1112,19 @@
                 <h2 style="margin-bottom: 20px; color: #333;">手動シフト登録</h2>
 
                 <div class="form-group">
+                    <label>登録するシフト</label>
+                    <select id="shiftWorkType">
+                        <option value="service">通常</option>
+                        <option value="prep">仕込み</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label>スタッフ選択</label>
                     <select id="shiftStaff">
                         <option value="">スタッフを選択してください</option>
                     </select>
+                    <small>仕込みスタッフを選ぶと、初期時間は12:00-17:00になります</small>
                 </div>
 
                 <div class="form-group">
@@ -1131,6 +1168,10 @@
                         <option value="10">10月</option>
                         <option value="11">11月</option>
                         <option value="12">12月</option>
+                    </select>
+                    <select id="viewWorkType">
+                        <option value="service">通常</option>
+                        <option value="prep">仕込み</option>
                     </select>
                 </div>
 
@@ -1184,9 +1225,21 @@
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom:0;">
-                            <label>時給</label>
+                            <label>給与区分</label>
+                            <select id="payrollWorkType">
+                                <option value="service">通常</option>
+                                <option value="prep">仕込み</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>通常の時給</label>
                             <input type="number" id="hourlyWage" min="0" step="1" value="1200" placeholder="例: 1200">
                             <small>22:00以降は自動で25%アップ</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>仕込みの時給</label>
+                            <input type="number" id="prepHourlyWage" min="0" step="1" value="1200" placeholder="例: 1200">
+                            <small>仕込み給与だけ別に設定できます</small>
                         </div>
                     </div>
 
@@ -1224,6 +1277,7 @@
         let currentDate = new Date();
         let editingStaffId = null;
         let currentViewPeriod = 'first'; // 'first' or 'second'
+        let currentViewWorkType = 'service';
         
         // カレンダー用の一時データ
         let tempAvailableDates = [];
@@ -1252,12 +1306,38 @@
                     shifts = [];
                 }
             }
+
+            staff.forEach(s => {
+                if (!s.workType) s.workType = 'service';
+                if (s.transportationCost === undefined) s.transportationCost = 0;
+            });
+            shifts.forEach(sh => {
+                if (!sh.workType) {
+                    const staffMember = staff.find(s => s.id === sh.staffId);
+                    sh.workType = staffMember?.workType || 'service';
+                }
+            });
         }
 
         // データを保存
         function saveData() {
             localStorage.setItem('yakitoriStaffV3', JSON.stringify(staff));
             localStorage.setItem('yakitoriShiftsV3', JSON.stringify(shifts));
+        }
+
+        function getWorkTypeLabel(workType) {
+            return workType === 'prep' ? '仕込み' : '通常';
+        }
+
+        function getStaffByWorkType(workType) {
+            return staff.filter(s => (s.workType || 'service') === workType);
+        }
+
+        function getShiftHoursForWorkType(dateStr, holidays, workType) {
+            if (workType === 'prep') {
+                return { start: '12:00', end: '17:00' };
+            }
+            return getShiftHours(dateStr, holidays);
         }
 
         // カレンダーを描画
@@ -1421,6 +1501,7 @@
         // スタッフを追加
         function addStaff() {
             const name = document.getElementById('staffName').value.trim();
+            const workType = document.querySelector('input[name="workType"]:checked').value;
             const availabilityType = document.querySelector('input[name="availabilityType"]:checked').value;
             
             if (!name) {
@@ -1451,33 +1532,40 @@
 
             const blockedDates = [...tempBlockedDates];
             const maxDaysPerWeek = parseInt(document.getElementById('maxDaysPerWeek').value);
+            const transportationCost = parseInt(document.getElementById('transportationCost').value) || 0;
 
             staff.push({ 
                 id: Date.now(), 
                 name,
+                workType,
                 availabilityType,
                 availableDays,
                 specificDates,
                 blockedDates,
-                maxDaysPerWeek
+                maxDaysPerWeek,
+                transportationCost
             });
             
             saveData();
             
             // フォームをリセット
             document.getElementById('staffName').value = '';
+            document.getElementById('workTypeService').checked = true;
             for (let i = 0; i < 7; i++) {
                 document.getElementById(`day${i}`).checked = false;
             }
             tempAvailableDates = [];
             tempBlockedDates = [];
             document.getElementById('maxDaysPerWeek').value = '5';
+            document.getElementById('transportationCost').value = '0';
             
             renderCalendar('availableCalendar', availableCalendarMonth, tempAvailableDates, 'available');
             renderCalendar('blockedCalendar', blockedCalendarMonth, tempBlockedDates, 'blocked');
             
             displayStaff();
             updateStaffSelect();
+            displayShiftTable();
+            generatePayroll(false);
         }
 
         // スタッフを削除
@@ -1490,6 +1578,7 @@
                 updateStaffSelect();
                 displayShifts();
                 displayShiftTable();
+                generatePayroll(false);
             }
         }
 
@@ -1513,6 +1602,19 @@
                 <div class="form-group">
                     <label>スタッフ名</label>
                     <input type="text" id="editName" value="${s.name}">
+                </div>
+                <div class="form-group">
+                    <label>担当</label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" name="editWorkType" value="service" ${(s.workType || 'service') === 'service' ? 'checked' : ''}>
+                            <label>通常</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" name="editWorkType" value="prep" ${(s.workType || 'service') === 'prep' ? 'checked' : ''}>
+                            <label>仕込み</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>勤務可能パターン</label>
@@ -1562,6 +1664,11 @@
                 <div class="form-group" style="margin-top:20px;">
                     <label>週の最大勤務日数</label>
                     <input type="number" id="editMaxDays" min="1" max="7" value="${s.maxDaysPerWeek || 5}">
+                </div>
+
+                <div class="form-group">
+                    <label>交通費（1回あたり）</label>
+                    <input type="number" id="editTransportationCost" min="0" step="1" value="${s.transportationCost || 0}">
                 </div>
 
                 <div class="form-group">
@@ -1708,6 +1815,7 @@
             if (!name) { alert('スタッフ名を入力してください'); return; }
 
             const availType = document.querySelector('input[name="editAvailType"]:checked').value;
+            const workType = document.querySelector('input[name="editWorkType"]:checked').value;
 
             let availableDays  = [];
             let specificDates  = [];
@@ -1723,15 +1831,18 @@
             }
 
             s.name             = name;
+            s.workType         = workType;
             s.availabilityType = availType;
             s.availableDays    = availableDays;
             s.specificDates    = specificDates;
             s.blockedDates     = [...window.editBlockedDates];
             s.maxDaysPerWeek   = parseInt(document.getElementById('editMaxDays').value) || 5;
+            s.transportationCost = parseInt(document.getElementById('editTransportationCost').value) || 0;
 
             shifts.forEach(shift => {
                 if (shift.staffId === s.id) {
                     shift.staffName = s.name;
+                    shift.workType = s.workType;
                 }
             });
 
@@ -1740,6 +1851,7 @@
             updateStaffSelect();
             displayShifts();
             displayShiftTable();
+            generatePayroll(false);
             closeEditModal();
         }
 
@@ -1756,6 +1868,8 @@
             listEl.innerHTML = staff.map(s => {
                 let availabilityText = '';
                 let priorityBadge = '';
+                const workTypeLabel = getWorkTypeLabel(s.workType || 'service');
+                const workTypeBadge = `<span style="background:${(s.workType || 'service') === 'prep' ? '#fff3e0' : '#eef2ff'};color:${(s.workType || 'service') === 'prep' ? '#e65100' : '#3949ab'};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">${workTypeLabel}</span>`;
                 if (s.availabilityType === 'weekday') {
                     availabilityText = `📅 ${s.availableDays.map(d => days[d]).join(', ')}`;
                     priorityBadge = '<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">優先①曜日固定</span>';
@@ -1802,8 +1916,9 @@
                     </div>
                     <div class="preferences">
                         <div class="preferences-section">
-                            <div style="margin-bottom:5px;">${priorityBadge}</div>
+                            <div style="margin-bottom:5px; display:flex; gap:6px; flex-wrap:wrap;">${workTypeBadge}${priorityBadge}</div>
                             <div>${availabilityText} (週${s.maxDaysPerWeek}日まで)</div>
+                            <div style="margin-top:4px; color:#666; font-size:12px;">交通費: ${formatCurrency(s.transportationCost || 0)}円 / 回</div>
                         </div>
                         ${specificDatesText}
                         ${blockedText}
@@ -1821,8 +1936,23 @@
         // スタッフ選択肢を更新
         function updateStaffSelect() {
             const select = document.getElementById('shiftStaff');
+            const workTypeFilter = document.getElementById('shiftWorkType')?.value || 'service';
+            const selectStaff = getStaffByWorkType(workTypeFilter);
             select.innerHTML = '<option value="">スタッフを選択してください</option>' +
-                staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                selectStaff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('shiftStart').value = '';
+            document.getElementById('shiftEnd').value = '';
+        }
+
+        function updateManualShiftDefaults() {
+            const staffId = parseInt(document.getElementById('shiftStaff').value);
+            const date = document.getElementById('shiftDate').value;
+            const staffMember = staff.find(s => s.id === staffId);
+            if (!staffMember || !date) return;
+
+            const hours = getShiftHoursForWorkType(date, [], staffMember.workType || 'service');
+            document.getElementById('shiftStart').value = hours.start;
+            document.getElementById('shiftEnd').value = hours.end;
         }
 
         // 日付文字列をパース（YYYY/M/D → "YYYY-MM-DD"）
@@ -1944,6 +2074,13 @@
             const year = parseInt(document.getElementById('autoYear').value);
             const month = parseInt(document.getElementById('autoMonth').value) - 1;
             const period = document.querySelector('input[name="period"]:checked').value;
+            const workType = document.getElementById('autoWorkType').value;
+            const targetStaff = getStaffByWorkType(workType);
+
+            if (targetStaff.length === 0) {
+                alert(`${getWorkTypeLabel(workType)}スタッフを先に登録してください`);
+                return;
+            }
 
             // 祝日をパース
             const holidaysText = document.getElementById('holidays').value;
@@ -1968,7 +2105,7 @@
             const staffWorkCount = {};
             const warnings = [];
             
-            staff.forEach(s => { staffWorkCount[s.id] = 0; });
+            targetStaff.forEach(s => { staffWorkCount[s.id] = 0; });
 
             let currentWeekKey = null;
 
@@ -1982,12 +2119,12 @@
                 const weekKey = getWeekKey(dateStr);
                 if (weekKey !== currentWeekKey) {
                     currentWeekKey = weekKey;
-                    staff.forEach(s => { staffWorkCount[s.id] = 0; });
+                    targetStaff.forEach(s => { staffWorkCount[s.id] = 0; });
                 }
 
-                const hours = getShiftHours(dateStr, holidays);
+                const hours = getShiftHoursForWorkType(dateStr, holidays, workType);
 
-                const availableStaff = staff.filter(s =>
+                const availableStaff = targetStaff.filter(s =>
                     isStaffAvailable(s, dateStr) &&
                     staffWorkCount[s.id] < s.maxDaysPerWeek
                 );
@@ -1998,6 +2135,7 @@
                         id: Date.now() + Math.random(),
                         staffId: s.id,
                         staffName: s.name,
+                        workType,
                         date: dateStr,
                         start: hours.start,
                         end: hours.end
@@ -2015,7 +2153,7 @@
                 const [sy, sm, sd] = sh.date.split('-').map(Number);
                 const shDay = sd;
                 const shMonth = sm - 1;
-                return !(sy === year && shMonth === month && shDay >= startDay && shDay <= endDay);
+                return !(sy === year && shMonth === month && shDay >= startDay && shDay <= endDay && (sh.workType || 'service') === workType);
             });
 
             shifts.push(...newShifts);
@@ -2035,13 +2173,14 @@
             document.getElementById('autoShiftResult').innerHTML = `
                 <div class="alert alert-info">
                     <strong>✅ シフト生成完了!</strong><br>
-                    ${year}年${month + 1}月${periodText}（${startDay}日〜${endDay}日）の${newShifts.length}件のシフトを作成しました。<br>
+                    ${year}年${month + 1}月${periodText}（${startDay}日〜${endDay}日）の${getWorkTypeLabel(workType)}シフトを${newShifts.length}件作成しました。<br>
                     ※月曜日（定休日）は自動的にスキップされています。
                 </div>
                 ${warningHTML}`;
 
             displayShifts();
             displayShiftTable();
+            generatePayroll(false);
         }
 
         // 週の識別キーを取得（その週の日曜日の日付文字列）
@@ -2086,6 +2225,7 @@
             const year = parseInt(document.getElementById('autoYear').value);
             const month = parseInt(document.getElementById('autoMonth').value) - 1;
             const period = document.querySelector('input[name="period"]:checked').value;
+            const workType = document.getElementById('autoWorkType').value;
 
             let startDay, endDay;
             
@@ -2104,16 +2244,17 @@
 
             const periodText = period === 'first' ? '前半' : period === 'second' ? '後半' : '全体';
 
-            if (confirm(`${year}年${month + 1}月${periodText}のシフトを削除しますか？`)) {
+            if (confirm(`${year}年${month + 1}月${periodText}の${getWorkTypeLabel(workType)}シフトを削除しますか？`)) {
                 shifts = shifts.filter(sh => {
                     const [sy, sm, sd] = sh.date.split('-').map(Number);
                     const shiftMonth = sm - 1;
-                    return !(sy === year && shiftMonth === month && sd >= startDay && sd <= endDay);
+                    return !(sy === year && shiftMonth === month && sd >= startDay && sd <= endDay && (sh.workType || 'service') === workType);
                 });
 
                 saveData();
                 displayShifts();
                 displayShiftTable();
+                generatePayroll(false);
                 document.getElementById('autoShiftResult').innerHTML = '';
                 alert('選択期間のシフトを削除しました');
             }
@@ -2126,6 +2267,7 @@
                 saveData();
                 displayShifts();
                 displayShiftTable();
+                generatePayroll(false);
                 document.getElementById('autoShiftResult').innerHTML = '';
                 alert('すべてのシフトを削除しました');
             }
@@ -2144,6 +2286,7 @@
             }
 
             const staffMember = staff.find(s => s.id === staffId);
+            const workType = staffMember.workType || 'service';
             
             // 入れない日チェック
             if (staffMember.blockedDates && staffMember.blockedDates.includes(date)) {
@@ -2157,18 +2300,20 @@
                 return;
             }
 
-            const existingShift = shifts.find(sh => sh.staffId === staffId && sh.date === date);
+            const existingShift = shifts.find(sh => sh.staffId === staffId && sh.date === date && (sh.workType || 'service') === workType);
             if (existingShift) {
                 existingShift.start = start;
                 existingShift.end = end;
                 existingShift.staffName = staffMember.name;
                 existingShift.staffRole = staffMember.role;
+                existingShift.workType = workType;
             } else {
                 shifts.push({
                     id: Date.now(),
                     staffId,
                     staffName: staffMember.name,
                     staffRole: staffMember.role,
+                    workType,
                     date,
                     start,
                     end
@@ -2183,6 +2328,7 @@
             
             displayShifts();
             displayShiftTable();
+            generatePayroll(false);
         }
 
         // シフトを削除
@@ -2193,6 +2339,7 @@
             saveData();
             displayShifts();
             displayShiftTable();
+            generatePayroll(false);
         }
 
         // シフト一覧を表示
@@ -2216,6 +2363,7 @@
                         <div class="shift-info">
                             <div class="shift-date">${formatDate(sh.date)} - ${sh.staffName}</div>
                             <div class="shift-details">
+                                <span class="role-badge">${getWorkTypeLabel(sh.workType || 'service')}</span>
                                 <span class="time-badge">${sh.start} - ${sh.end}</span>
                                 <span class="role-badge">${sh.staffRole || ''}</span>
                             </div>
@@ -2252,7 +2400,9 @@
             const year = parseInt(document.getElementById('payrollYear').value);
             const month = parseInt(document.getElementById('payrollMonth').value) - 1;
             const period = document.getElementById('payrollPeriod').value;
-            const hourlyWage = parseFloat(document.getElementById('hourlyWage').value);
+            const workType = document.getElementById('payrollWorkType').value;
+            const hourlyWageInput = workType === 'prep' ? 'prepHourlyWage' : 'hourlyWage';
+            const hourlyWage = parseFloat(document.getElementById(hourlyWageInput).value);
             const resultEl = document.getElementById('payrollResult');
             const tsvEl = document.getElementById('payrollTSV');
 
@@ -2269,12 +2419,13 @@
 
             const targetShifts = shifts.filter(shift => {
                 if (!shift.date.startsWith(monthPrefix)) return false;
+                if ((shift.workType || 'service') !== workType) return false;
                 const day = parseInt(shift.date.split('-')[2]);
                 return day >= startDay && day <= endDay;
             });
 
             if (targetShifts.length === 0) {
-                resultEl.innerHTML = `<div class="empty-state"><p>${year}年${month + 1}月${periodLabel}のシフトがありません</p></div>`;
+                resultEl.innerHTML = `<div class="empty-state"><p>${year}年${month + 1}月${periodLabel}の${getWorkTypeLabel(workType)}シフトがありません</p></div>`;
                 tsvEl.value = '';
                 return;
             }
@@ -2289,6 +2440,8 @@
                         regularMinutes: 0,
                         lateNightMinutes: 0,
                         totalMinutes: 0,
+                        wagePay: 0,
+                        transportation: 0,
                         pay: 0
                     };
                 }
@@ -2296,13 +2449,17 @@
                 const totalMinutes = calculateShiftMinutes(shift.start, shift.end);
                 const lateNightMinutes = calculateLateNightMinutes(shift.start, shift.end);
                 const regularMinutes = totalMinutes - lateNightMinutes;
-                const pay = (regularMinutes / 60) * hourlyWage + (lateNightMinutes / 60) * hourlyWage * 1.25;
+                const staffMember = staff.find(s => s.id === shift.staffId);
+                const transportation = staffMember?.transportationCost || 0;
+                const wagePay = (regularMinutes / 60) * hourlyWage + (lateNightMinutes / 60) * hourlyWage * 1.25;
 
                 staffPayroll[shift.staffId].shifts += 1;
                 staffPayroll[shift.staffId].regularMinutes += regularMinutes;
                 staffPayroll[shift.staffId].lateNightMinutes += lateNightMinutes;
                 staffPayroll[shift.staffId].totalMinutes += totalMinutes;
-                staffPayroll[shift.staffId].pay += pay;
+                staffPayroll[shift.staffId].wagePay += wagePay;
+                staffPayroll[shift.staffId].transportation += transportation;
+                staffPayroll[shift.staffId].pay += wagePay + transportation;
             });
 
             const rows = Object.values(staffPayroll).sort((a, b) => b.pay - a.pay || a.name.localeCompare(b.name, 'ja'));
@@ -2315,7 +2472,7 @@
                     <div class="payroll-summary-item">
                         <strong>対象期間</strong>
                         <span>${year}年${month + 1}月</span>
-                        <div style="margin-top:6px; color:#666; font-size:13px;">${periodLabel}</div>
+                        <div style="margin-top:6px; color:#666; font-size:13px;">${periodLabel} / ${getWorkTypeLabel(workType)}</div>
                     </div>
                     <div class="payroll-summary-item">
                         <strong>総支給額</strong>
@@ -2336,6 +2493,8 @@
                                 <th>通常時間</th>
                                 <th>深夜時間</th>
                                 <th>合計時間</th>
+                                <th>給与</th>
+                                <th>交通費</th>
                                 <th>支給額</th>
                             </tr>
                         </thead>
@@ -2347,6 +2506,8 @@
                                     <td>${formatMinutesAsHours(row.regularMinutes)}h</td>
                                     <td>${formatMinutesAsHours(row.lateNightMinutes)}h</td>
                                     <td>${formatMinutesAsHours(row.totalMinutes)}h</td>
+                                    <td>${formatCurrency(row.wagePay)}円</td>
+                                    <td>${formatCurrency(row.transportation)}円</td>
                                     <td>${formatCurrency(row.pay)}円</td>
                                 </tr>
                             `).join('')}
@@ -2354,13 +2515,26 @@
                     </table>
                 </div>`;
 
-            const ledgerRows = rows.map(row => [
-                ledgerDate,
-                row.name,
-                Math.round(row.pay),
-                '対象外',
-                '給料賃金'
-            ].join('\t'));
+            const ledgerRows = [];
+            rows.forEach(row => {
+                ledgerRows.push([
+                    ledgerDate,
+                    row.name,
+                    Math.round(row.wagePay),
+                    '対象外',
+                    '給料賃金'
+                ].join('\t'));
+
+                if (Math.round(row.transportation) > 0) {
+                    ledgerRows.push([
+                        ledgerDate,
+                        `${row.name} 交通費`,
+                        Math.round(row.transportation),
+                        '対象外',
+                        '旅費交通費'
+                    ].join('\t'));
+                }
+            });
 
             tsvEl.value = ledgerRows.join('\n');
         }
@@ -2403,10 +2577,16 @@
             displayShiftTable();
         }
 
+        function changeViewWorkType() {
+            currentViewWorkType = document.getElementById('viewWorkType').value;
+            displayShiftTable();
+        }
+
         // シフト表を表示（半月単位・時間表示・タップ編集対応）
         function displayShiftTable() {
             const year  = parseInt(document.getElementById('viewYear').value);
             const month = parseInt(document.getElementById('viewMonth').value) - 1;
+            const viewStaff = getStaffByWorkType(currentViewWorkType);
 
             let startDay, endDay;
             if (currentViewPeriod === 'first') {
@@ -2419,36 +2599,31 @@
             const container = document.getElementById('shiftTableContainer');
             const dayNames = ['日','月','火','水','木','金','土'];
 
-            if (staff.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>スタッフが登録されていません</p></div>';
+            if (viewStaff.length === 0) {
+                container.innerHTML = `<div class="empty-state"><p>${getWorkTypeLabel(currentViewWorkType)}スタッフが登録されていません</p></div>`;
                 return;
             }
 
             // 各スタッフの総労働時間を計算
             const staffTotalHours = {};
-            staff.forEach(s => { staffTotalHours[s.id] = 0; });
+            viewStaff.forEach(s => { staffTotalHours[s.id] = 0; });
 
             for (let day = startDay; day <= endDay; day++) {
                 const dateStr = toDateStr(year, month, day);
                 const dow = getDayOfWeek(dateStr);
                 if (dow === 1) continue; // 月曜は定休
 
-                staff.forEach(s => {
-                    const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr);
+                viewStaff.forEach(s => {
+                    const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                     if (sh) {
-                        // 労働時間を計算（HH:MM形式から分に変換）
-                        const [startH, startM] = sh.start.split(':').map(Number);
-                        const [endH, endM] = sh.end.split(':').map(Number);
-                        const startMinutes = startH * 60 + startM;
-                        const endMinutes = endH * 60 + endM;
-                        const workMinutes = endMinutes - startMinutes;
-                        staffTotalHours[s.id] += workMinutes;
+                        staffTotalHours[s.id] += calculateShiftMinutes(sh.start, sh.end);
                     }
                 });
             }
 
             let html = `
                 <div style="margin-bottom:8px; font-size:12px; color:#666; display:flex; gap:16px; flex-wrap:wrap;">
+                    <span>${getWorkTypeLabel(currentViewWorkType)}シフト</span>
                     <span>🔴 定休日（月）</span>
                     <span>🟡 週末・祝日</span>
                     <span>🔵 平日</span>
@@ -2459,7 +2634,7 @@
                     <thead><tr>
                         <th style="min-width:88px; position:sticky; left:0; z-index:2; background:linear-gradient(135deg,#667eea,#764ba2);">日付</th>`;
 
-            staff.forEach(s => {
+            viewStaff.forEach(s => {
                 const shortName = s.name.length > 4 ? s.name.slice(0, 4) + '…' : s.name;
                 const totalMinutes = staffTotalHours[s.id];
                 const hours = Math.floor(totalMinutes / 60);
@@ -2490,11 +2665,11 @@
                     </td>`;
 
                 if (isMonday) {
-                    html += `<td style="${rowBg} color:#c62828; font-size:11px;" colspan="${staff.length}">定休日</td>`;
+                    html += `<td style="${rowBg} color:#c62828; font-size:11px;" colspan="${viewStaff.length}">定休日</td>`;
                 } else {
 
-                    staff.forEach(s => {
-                        const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr);
+                    viewStaff.forEach(s => {
+                        const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                         if (sh) {
                             // 時間をタップで編集
                             html += `<td style="${rowBg} padding:4px 2px;">
@@ -2547,10 +2722,10 @@
 
             // デフォルト時間（週末・祝日か判定）
             const holidays = []; // 追加時は祝日判定なしでデフォルト
-            const hours = getShiftHours(dateStr, holidays);
+            const hours = getShiftHoursForWorkType(dateStr, holidays, staffMember.workType || 'service');
 
             const modal = document.getElementById('shiftEditModal');
-            document.getElementById('shiftEditTitle').textContent = `${formatDate(dateStr)}　${staffMember.name}　追加`;
+            document.getElementById('shiftEditTitle').textContent = `${formatDate(dateStr)}　${staffMember.name}（${getWorkTypeLabel(staffMember.workType || 'service')}）　追加`;
             document.getElementById('shiftEditStart').value = hours.start;
             document.getElementById('shiftEditEnd').value   = hours.end;
             document.getElementById('shiftEditId').value    = `new_${dateStr}_${staffId}`;
@@ -2582,16 +2757,19 @@
                         return;
                     }
 
-                    const existingShift = shifts.find(s => s.staffId === staffId && s.date === dateStr);
+                    const workType = staffMember.workType || 'service';
+                    const existingShift = shifts.find(s => s.staffId === staffId && s.date === dateStr && (s.workType || 'service') === workType);
                     if (existingShift) {
                         existingShift.start = newStart;
                         existingShift.end = newEnd;
                         existingShift.staffName = staffMember.name;
+                        existingShift.workType = workType;
                     } else {
                         shifts.push({
                             id: Date.now(),
                             staffId,
                             staffName: staffMember.name,
+                            workType,
                             date: dateStr,
                             start: newStart,
                             end: newEnd
@@ -2612,6 +2790,7 @@
             closeShiftEditModal();
             displayShiftTable();
             displayShifts();
+            generatePayroll(false);
         }
 
         function deleteShiftFromModal() {
@@ -2624,17 +2803,19 @@
             closeShiftEditModal();
             displayShiftTable();
             displayShifts();
+            generatePayroll(false);
         }
 
         // PDF出力
         function exportPDF() {
-            if (staff.length === 0) {
-                alert('スタッフが登録されていません');
+            const exportStaff = getStaffByWorkType(currentViewWorkType);
+            if (exportStaff.length === 0) {
+                alert(`${getWorkTypeLabel(currentViewWorkType)}スタッフが登録されていません`);
                 return;
             }
             
-            if (shifts.length === 0) {
-                alert('シフトが登録されていません');
+            if (!shifts.some(sh => (sh.workType || 'service') === currentViewWorkType)) {
+                alert(`${getWorkTypeLabel(currentViewWorkType)}シフトが登録されていません`);
                 return;
             }
 
@@ -2655,27 +2836,24 @@
 
             // 各スタッフの総労働時間を計算
             const staffTotalHours = {};
-            staff.forEach(s => { staffTotalHours[s.id] = 0; });
+            exportStaff.forEach(s => { staffTotalHours[s.id] = 0; });
 
             for (let day = startDay; day <= endDay; day++) {
                 const dateStr = toDateStr(year, month, day);
                 const dow = getDayOfWeek(dateStr);
                 if (dow === 1) continue;
 
-                staff.forEach(s => {
-                    const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr);
+                exportStaff.forEach(s => {
+                    const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                     if (sh) {
-                        const [startH, startM] = sh.start.split(':').map(Number);
-                        const [endH, endM] = sh.end.split(':').map(Number);
-                        const workMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-                        staffTotalHours[s.id] += workMinutes;
+                        staffTotalHours[s.id] += calculateShiftMinutes(sh.start, sh.end);
                     }
                 });
             }
 
             // ヘッダー行
             let headerCells = `<th style="background:#4a4a6a;color:white;padding:8px 6px;border:1px solid #999;min-width:80px;font-size:12px;">日付</th>`;
-            staff.forEach(s => {
+            exportStaff.forEach(s => {
                 const name = s.name.length > 5 ? s.name.slice(0, 5) + '…' : s.name;
                 const totalMinutes = staffTotalHours[s.id];
                 const hours = Math.floor(totalMinutes / 60);
@@ -2704,11 +2882,11 @@
                 let dateTd = `<td style="background:${rowBg};padding:6px 5px;border:1px solid #ccc;font-weight:bold;font-size:11px;white-space:nowrap;">${icon} ${dateLabel}</td>`;
 
                 if (isMonday) {
-                    rows += `<tr>${dateTd}<td colspan="${staff.length}" style="background:#fdecea;color:#c00;padding:6px;border:1px solid #ccc;font-size:11px;text-align:center;">定休日</td></tr>`;
+                    rows += `<tr>${dateTd}<td colspan="${exportStaff.length}" style="background:#fdecea;color:#c00;padding:6px;border:1px solid #ccc;font-size:11px;text-align:center;">定休日</td></tr>`;
                 } else {
                     let cells = dateTd;
-                    staff.forEach(s => {
-                        const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr);
+                    exportStaff.forEach(s => {
+                        const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                         if (sh) {
                             cells += `<td style="background:${rowBg};padding:5px 3px;border:1px solid #ccc;text-align:center;font-size:10px;font-weight:bold;color:#1a237e;">${sh.start}<br>${sh.end}</td>`;
                         } else {
@@ -2738,11 +2916,11 @@
 </style>
 </head>
 <body>
-  <h1>🍢 ${year}年${month+1}月 ${periodLabel} シフト表</h1>
+  <h1>🍢 ${year}年${month+1}月 ${periodLabel} ${getWorkTypeLabel(currentViewWorkType)}シフト表</h1>
   <div class="legend">
     <span>● 定休日（月曜）</span>
     <span>◆ 週末（金土日）</span>
-    <span>平日 18:00〜22:00</span>
+    <span>${currentViewWorkType === 'prep' ? '仕込み 12:00〜17:00' : '平日 18:00〜22:00'}</span>
   </div>
   <table>
     <thead><tr>${headerCells}</tr></thead>
@@ -2816,10 +2994,16 @@
         // 表示タブの月・年変更時にシフト表を更新
         document.getElementById('viewYear').addEventListener('change', displayShiftTable);
         document.getElementById('viewMonth').addEventListener('change', displayShiftTable);
+        document.getElementById('viewWorkType').addEventListener('change', changeViewWorkType);
         document.getElementById('payrollYear').addEventListener('change', () => generatePayroll(false));
         document.getElementById('payrollMonth').addEventListener('change', () => generatePayroll(false));
         document.getElementById('payrollPeriod').addEventListener('change', () => generatePayroll(false));
+        document.getElementById('payrollWorkType').addEventListener('change', () => generatePayroll(false));
         document.getElementById('hourlyWage').addEventListener('input', () => generatePayroll(false));
+        document.getElementById('prepHourlyWage').addEventListener('input', () => generatePayroll(false));
+        document.getElementById('shiftWorkType').addEventListener('change', updateStaffSelect);
+        document.getElementById('shiftStaff').addEventListener('change', updateManualShiftDefaults);
+        document.getElementById('shiftDate').addEventListener('change', updateManualShiftDefaults);
         
         updateAvailabilityForm();
         displayStaff();
