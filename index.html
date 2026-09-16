@@ -2834,8 +2834,7 @@
 
             const dayNames = ['日','月','火','水','木','金','土'];
             const workTypeLabel = getWorkTypeLabel(currentViewWorkType);
-            const generatedAt = new Date().toLocaleString('ja-JP');
-            const defaultHoursText = currentViewWorkType === 'prep' ? '仕込み 12:00〜17:00' : '平日 18:00〜22:00 / 週末・祝日 17:00〜22:00';
+            const defaultHoursText = currentViewWorkType === 'prep' ? '仕込み 12:00〜17:00' : '平日 18:00〜22:00　週末・祝日 17:00〜22:00';
 
             // 各スタッフの総労働時間を計算
             const staffTotalHours = {};
@@ -2860,7 +2859,7 @@
                 const totalMinutes = staffTotalHours[s.id];
                 const hours = Math.floor(totalMinutes / 60);
                 const minutes = totalMinutes % 60;
-                const totalText = `${hours}h${minutes > 0 ? minutes + 'm' : ''}`;
+                const totalText = `計${hours}h${minutes > 0 ? minutes + 'm' : ''}`;
                 headerCells += `<th class="staff-col">
                     <div class="staff-name">${s.name}</div>
                     <div class="staff-total">${totalText}</div>
@@ -2881,7 +2880,9 @@
                 if (isMonday)       rowClass = 'closed-row';
                 else if (isWeekend) rowClass = 'weekend-row';
 
-                let dateTd = `<td class="date-cell">${dateLabel}</td>`;
+                const dateMark = isMonday ? '●' : isWeekend ? '◆' : '';
+                const markedDateLabel = dateMark ? `${dateMark} ${dateLabel}` : dateLabel;
+                let dateTd = `<td class="date-cell">${markedDateLabel}</td>`;
 
                 if (isMonday) {
                     rows += `<tr class="${rowClass}">${dateTd}<td colspan="${exportStaff.length}" class="closed-cell">定休日</td></tr>`;
@@ -2890,7 +2891,7 @@
                     exportStaff.forEach(s => {
                         const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                         if (sh) {
-                            cells += `<td class="shift-cell"><span>${sh.start}</span><span>${sh.end}</span></td>`;
+                            cells += `<td class="shift-cell">${sh.start}-${sh.end}</td>`;
                         } else {
                             cells += `<td class="empty-cell">-</td>`;
                         }
@@ -2909,155 +2910,138 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     font-family: 'Hiragino Kaku Gothic Pro', Meiryo, sans-serif;
-    color:#222;
+    color:#050b20;
     background:#fff;
-    padding: 14px;
+    padding: 18px 20px;
   }
   .print-header {
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-    gap:16px;
-    border-bottom:3px solid #333;
-    padding-bottom:10px;
-    margin-bottom:10px;
+    text-align:center;
+    margin-bottom:8px;
   }
   h1 {
-    font-size:22px;
-    line-height:1.25;
-    color:#111;
-    letter-spacing:0.02em;
+    font-size:30px;
+    line-height:1.2;
+    color:#071434;
+    font-weight:900;
+    letter-spacing:0.04em;
   }
   .subtitle {
-    margin-top:4px;
-    font-size:12px;
-    color:#555;
-  }
-  .meta {
-    text-align:right;
-    font-size:11px;
-    color:#555;
-    white-space:nowrap;
-    line-height:1.6;
+    margin-top:8px;
+    font-size:14px;
+    color:#222;
+    font-weight:700;
+    letter-spacing:0.03em;
   }
   .legend {
     display:flex;
-    gap:8px 16px;
-    margin-bottom:10px;
-    font-size:11px;
-    color:#333;
+    justify-content:center;
+    gap:26px;
+    margin:8px 0 14px;
+    font-size:14px;
+    color:#222;
+    font-weight:700;
     flex-wrap:wrap;
   }
-  .legend span {
-    display:inline-flex;
-    align-items:center;
-    gap:4px;
-  }
-  .legend .mark {
-    width:12px;
-    height:12px;
-    border-radius:3px;
+  .legend .mark-text {
     display:inline-block;
-    border:1px solid #bbb;
+    min-width:18px;
+    text-align:center;
+    font-size:16px;
+    color:#111;
   }
-  .legend .closed { background:#fce4e4; }
-  .legend .weekend { background:#fff4c2; }
-  .legend .work { background:#e8f1ff; }
   table {
     border-collapse:collapse;
     width:100%;
     table-layout:fixed;
-    font-size:10px;
+    font-size:15px;
+    border:1.4px solid #b8bdc7;
   }
   th, td {
-    border:1px solid #999;
+    border:1px solid #c9ccd3;
     text-align:center;
     vertical-align:middle;
     overflow:hidden;
   }
   thead th {
-    background:#30364a;
-    color:#fff;
-    padding:7px 4px;
-    font-weight:bold;
+    background:linear-gradient(#f8f9fb, #edf0f5);
+    color:#071434;
+    padding:9px 5px;
+    font-weight:900;
+    border-color:#aeb4bf;
   }
   .date-col {
-    width:72px;
+    width:94px;
   }
   .staff-col {
-    min-width:58px;
+    min-width:82px;
   }
   .staff-name {
-    font-size:11px;
+    font-size:17px;
     line-height:1.25;
     overflow-wrap:anywhere;
   }
   .staff-total {
-    margin-top:3px;
-    color:#ffe680;
-    font-size:9px;
-    font-weight:normal;
+    margin-top:2px;
+    color:#333;
+    font-size:12px;
+    font-weight:700;
   }
   tbody td {
-    padding:5px 3px;
+    padding:5px 4px;
     height:31px;
   }
   .date-cell {
-    font-weight:bold;
-    background:#f4f4f4;
+    font-weight:900;
+    background:#fff;
     white-space:nowrap;
-    color:#222;
+    color:#050b20;
+    font-size:15px;
   }
   .weekend-row td {
-    background:#fffdf0;
+    background:#fff;
   }
   .weekend-row .date-cell {
-    background:#fff4c2;
+    background:#fff3df;
   }
   .closed-row td {
-    background:#fce4e4;
+    background:linear-gradient(90deg, #e7e8ea, #f3f4f6);
   }
   .closed-cell {
-    color:#b00020;
-    font-weight:bold;
-    letter-spacing:0.08em;
+    color:#c00000;
+    font-weight:900;
+    letter-spacing:0.1em;
+    font-size:18px;
   }
   .shift-cell {
-    background:#e8f1ff;
-    color:#123d7a;
-    font-weight:bold;
-    line-height:1.25;
-  }
-  .shift-cell span {
-    display:block;
+    background:linear-gradient(#edf6ff, #dfeeff);
+    color:#000b5c;
+    font-weight:900;
+    line-height:1.2;
+    font-size:15px;
   }
   .empty-cell {
-    color:#bbb;
-    font-size:12px;
+    color:#777;
+    font-size:16px;
+    font-weight:700;
   }
   @media print {
     body { padding:0; }
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 landscape; margin: 7mm; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
 <body>
   <div class="print-header">
-    <div>
-      <h1>${year}年${month+1}月 ${periodLabel} ${workTypeLabel}シフト表</h1>
-      <div class="subtitle">${defaultHoursText}</div>
-    </div>
-    <div class="meta">
-      <div>${startDay}日〜${endDay}日</div>
-      <div>出力: ${generatedAt}</div>
-    </div>
+    <h1>🍢 ${year}年${month+1}月 ${periodLabel} ${workTypeLabel}シフト表</h1>
+    <div class="subtitle">${defaultHoursText}</div>
   </div>
   <div class="legend">
-    <span><i class="mark work"></i>勤務あり</span>
-    <span><i class="mark weekend"></i>週末（金土日）</span>
-    <span><i class="mark closed"></i>定休日（月曜）</span>
+    <span><b class="mark-text">●</b>定休日（月曜）</span>
+    <span><b class="mark-text">◆</b>週末（金土日）</span>
+    <span>${defaultHoursText}</span>
   </div>
   <table>
     <thead><tr>${headerCells}</tr></thead>
