@@ -2833,6 +2833,9 @@
             }
 
             const dayNames = ['日','月','火','水','木','金','土'];
+            const workTypeLabel = getWorkTypeLabel(currentViewWorkType);
+            const generatedAt = new Date().toLocaleString('ja-JP');
+            const defaultHoursText = currentViewWorkType === 'prep' ? '仕込み 12:00〜17:00' : '平日 18:00〜22:00 / 週末・祝日 17:00〜22:00';
 
             // 各スタッフの総労働時間を計算
             const staffTotalHours = {};
@@ -2852,15 +2855,15 @@
             }
 
             // ヘッダー行
-            let headerCells = `<th style="background:#4a4a6a;color:white;padding:8px 6px;border:1px solid #999;min-width:80px;font-size:12px;">日付</th>`;
+            let headerCells = `<th class="date-col">日付</th>`;
             exportStaff.forEach(s => {
-                const name = s.name.length > 5 ? s.name.slice(0, 5) + '…' : s.name;
                 const totalMinutes = staffTotalHours[s.id];
                 const hours = Math.floor(totalMinutes / 60);
                 const minutes = totalMinutes % 60;
                 const totalText = `${hours}h${minutes > 0 ? minutes + 'm' : ''}`;
-                headerCells += `<th style="background:#4a4a6a;color:white;padding:8px 4px;border:1px solid #999;min-width:60px;font-size:11px;text-align:center;">
-                    ${name}<br><span style="color:#ffeb3b;font-size:9px;">${totalText}</span>
+                headerCells += `<th class="staff-col">
+                    <div class="staff-name">${s.name}</div>
+                    <div class="staff-total">${totalText}</div>
                 </th>`;
             });
 
@@ -2873,27 +2876,26 @@
                 const isMonday  = dow === 1;
                 const isWeekend = dow === 0 || dow === 5 || dow === 6;
 
-                let rowBg = 'white';
+                let rowClass = '';
                 let dateLabel = `${month+1}/${day}(${dayName})`;
-                let icon = '';
-                if (isMonday)       { rowBg = '#fdecea'; icon = '●'; }
-                else if (isWeekend) { rowBg = '#fffde7'; icon = '◆'; }
+                if (isMonday)       rowClass = 'closed-row';
+                else if (isWeekend) rowClass = 'weekend-row';
 
-                let dateTd = `<td style="background:${rowBg};padding:6px 5px;border:1px solid #ccc;font-weight:bold;font-size:11px;white-space:nowrap;">${icon} ${dateLabel}</td>`;
+                let dateTd = `<td class="date-cell">${dateLabel}</td>`;
 
                 if (isMonday) {
-                    rows += `<tr>${dateTd}<td colspan="${exportStaff.length}" style="background:#fdecea;color:#c00;padding:6px;border:1px solid #ccc;font-size:11px;text-align:center;">定休日</td></tr>`;
+                    rows += `<tr class="${rowClass}">${dateTd}<td colspan="${exportStaff.length}" class="closed-cell">定休日</td></tr>`;
                 } else {
                     let cells = dateTd;
                     exportStaff.forEach(s => {
                         const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                         if (sh) {
-                            cells += `<td style="background:${rowBg};padding:5px 3px;border:1px solid #ccc;text-align:center;font-size:10px;font-weight:bold;color:#1a237e;">${sh.start}<br>${sh.end}</td>`;
+                            cells += `<td class="shift-cell"><span>${sh.start}</span><span>${sh.end}</span></td>`;
                         } else {
-                            cells += `<td style="background:${rowBg};padding:5px 3px;border:1px solid #ccc;text-align:center;color:#bbb;font-size:13px;">−</td>`;
+                            cells += `<td class="empty-cell">-</td>`;
                         }
                     });
-                    rows += `<tr>${cells}</tr>`;
+                    rows += `<tr class="${rowClass}">${cells}</tr>`;
                 }
             }
 
@@ -2902,25 +2904,160 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${year}年${month+1}月 シフト表</title>
+<title>${year}年${month+1}月 ${workTypeLabel}シフト表</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Hiragino Kaku Gothic Pro', Meiryo, sans-serif; padding: 20px; }
-  h1 { text-align:center; font-size:18px; margin-bottom:10px; color:#333; }
-  .legend { display:flex; gap:15px; justify-content:center; margin-bottom:15px; font-size:11px; color:#555; flex-wrap:wrap; }
-  table { border-collapse:collapse; width:100%; }
+  body {
+    font-family: 'Hiragino Kaku Gothic Pro', Meiryo, sans-serif;
+    color:#222;
+    background:#fff;
+    padding: 14px;
+  }
+  .print-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:16px;
+    border-bottom:3px solid #333;
+    padding-bottom:10px;
+    margin-bottom:10px;
+  }
+  h1 {
+    font-size:22px;
+    line-height:1.25;
+    color:#111;
+    letter-spacing:0.02em;
+  }
+  .subtitle {
+    margin-top:4px;
+    font-size:12px;
+    color:#555;
+  }
+  .meta {
+    text-align:right;
+    font-size:11px;
+    color:#555;
+    white-space:nowrap;
+    line-height:1.6;
+  }
+  .legend {
+    display:flex;
+    gap:8px 16px;
+    margin-bottom:10px;
+    font-size:11px;
+    color:#333;
+    flex-wrap:wrap;
+  }
+  .legend span {
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+  }
+  .legend .mark {
+    width:12px;
+    height:12px;
+    border-radius:3px;
+    display:inline-block;
+    border:1px solid #bbb;
+  }
+  .legend .closed { background:#fce4e4; }
+  .legend .weekend { background:#fff4c2; }
+  .legend .work { background:#e8f1ff; }
+  table {
+    border-collapse:collapse;
+    width:100%;
+    table-layout:fixed;
+    font-size:10px;
+  }
+  th, td {
+    border:1px solid #999;
+    text-align:center;
+    vertical-align:middle;
+    overflow:hidden;
+  }
+  thead th {
+    background:#30364a;
+    color:#fff;
+    padding:7px 4px;
+    font-weight:bold;
+  }
+  .date-col {
+    width:72px;
+  }
+  .staff-col {
+    min-width:58px;
+  }
+  .staff-name {
+    font-size:11px;
+    line-height:1.25;
+    overflow-wrap:anywhere;
+  }
+  .staff-total {
+    margin-top:3px;
+    color:#ffe680;
+    font-size:9px;
+    font-weight:normal;
+  }
+  tbody td {
+    padding:5px 3px;
+    height:31px;
+  }
+  .date-cell {
+    font-weight:bold;
+    background:#f4f4f4;
+    white-space:nowrap;
+    color:#222;
+  }
+  .weekend-row td {
+    background:#fffdf0;
+  }
+  .weekend-row .date-cell {
+    background:#fff4c2;
+  }
+  .closed-row td {
+    background:#fce4e4;
+  }
+  .closed-cell {
+    color:#b00020;
+    font-weight:bold;
+    letter-spacing:0.08em;
+  }
+  .shift-cell {
+    background:#e8f1ff;
+    color:#123d7a;
+    font-weight:bold;
+    line-height:1.25;
+  }
+  .shift-cell span {
+    display:block;
+  }
+  .empty-cell {
+    color:#bbb;
+    font-size:12px;
+  }
   @media print {
-    body { padding: 10px; }
-    @page { size: A4 portrait; margin: 10mm; }
+    body { padding:0; }
+    @page { size: A4 landscape; margin: 8mm; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
-  <h1>🍢 ${year}年${month+1}月 ${periodLabel} ${getWorkTypeLabel(currentViewWorkType)}シフト表</h1>
+  <div class="print-header">
+    <div>
+      <h1>${year}年${month+1}月 ${periodLabel} ${workTypeLabel}シフト表</h1>
+      <div class="subtitle">${defaultHoursText}</div>
+    </div>
+    <div class="meta">
+      <div>${startDay}日〜${endDay}日</div>
+      <div>出力: ${generatedAt}</div>
+    </div>
+  </div>
   <div class="legend">
-    <span>● 定休日（月曜）</span>
-    <span>◆ 週末（金土日）</span>
-    <span>${currentViewWorkType === 'prep' ? '仕込み 12:00〜17:00' : '平日 18:00〜22:00'}</span>
+    <span><i class="mark work"></i>勤務あり</span>
+    <span><i class="mark weekend"></i>週末（金土日）</span>
+    <span><i class="mark closed"></i>定休日（月曜）</span>
   </div>
   <table>
     <thead><tr>${headerCells}</tr></thead>
