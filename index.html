@@ -1085,8 +1085,12 @@
 
                     <div class="form-group">
                         <label>祝日（17:00-22:00になる日）</label>
-                        <textarea id="holidays" placeholder="例:&#10;2026/2/11&#10;2026/2/23&#10;&#10;（1行に1日付、空欄でもOK）"></textarea>
-                        <small>通常シフトでは祝日を17:00-22:00にします。仕込みは12:00-17:00で作成します</small>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                            <button type="button" class="btn btn-secondary" style="padding:8px 12px; font-size:12px;" onclick="fetchHolidayDataForSelectedYear()">祝日を自動取得</button>
+                            <span id="holidayFetchStatus" style="font-size:12px; color:#666; align-self:center;">未取得の場合も、自動生成時に対象年を取得します</span>
+                        </div>
+                        <textarea id="holidays" placeholder="手入力で追加する場合:&#10;2026/2/11 建国記念の日&#10;2026/2/23 天皇誕生日&#10;&#10;（自動取得分と合算されます）"></textarea>
+                        <small>通常シフトでは金土日と祝日を17:00-22:00にします。仕込みは12:00-17:00で作成します</small>
                     </div>
 
                     <h3 style="margin-top: 20px;">1日の必要人数</h3>
@@ -1278,6 +1282,7 @@
         let editingStaffId = null;
         let currentViewPeriod = 'first'; // 'first' or 'second'
         let currentViewWorkType = 'service';
+        let holidayNames = {};
         
         // カレンダー用の一時データ
         let tempAvailableDates = [];
@@ -1289,6 +1294,7 @@
         function loadData() {
             const savedStaff = localStorage.getItem('yakitoriStaffV3');
             const savedShifts = localStorage.getItem('yakitoriShiftsV3');
+            const savedHolidays = localStorage.getItem('yakitoriHolidayNamesV1');
             
             if (savedStaff) {
                 try {
@@ -1304,6 +1310,14 @@
                 } catch (error) {
                     console.error('シフトデータの読み込みに失敗しました:', error);
                     shifts = [];
+                }
+            }
+            if (savedHolidays) {
+                try {
+                    holidayNames = JSON.parse(savedHolidays);
+                } catch (error) {
+                    console.error('祝日データの読み込みに失敗しました:', error);
+                    holidayNames = {};
                 }
             }
 
@@ -1323,6 +1337,7 @@
         function saveData() {
             localStorage.setItem('yakitoriStaffV3', JSON.stringify(staff));
             localStorage.setItem('yakitoriShiftsV3', JSON.stringify(shifts));
+            localStorage.setItem('yakitoriHolidayNamesV1', JSON.stringify(holidayNames));
         }
 
         function getWorkTypeLabel(workType) {
@@ -1338,6 +1353,107 @@
                 return { start: '12:00', end: '17:00' };
             }
             return getShiftHours(dateStr, holidays);
+        }
+
+        function formatDateForHolidayInput(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return `${year}/${month}/${day}`;
+        }
+
+        function parseManualHolidayLine(line) {
+            const trimmed = line.trim();
+            if (!trimmed) return null;
+            const match = trimmed.match(/^(\d{4}[/-]\d{1,2}[/-]\d{1,2})(?:\s+(.+))?$/);
+            if (!match) return null;
+            const date = parseDateString(match[1]);
+            if (!date) return null;
+            return { date, name: (match[2] || holidayNames[date] || '祝日').trim() };
+        }
+
+        function getManualHolidayNames() {
+            const textarea = document.getElementById('holidays');
+            if (!textarea) return {};
+            return textarea.value.split('\n').reduce((result, line) => {
+                const holiday = parseManualHolidayLine(line);
+                if (holiday) result[holiday.date] = holiday.name;
+                return result;
+            }, {});
+        }
+
+        function getHolidayNames() {
+            return { ...holidayNames, ...getManualHolidayNames() };
+        }
+
+        function getHolidayName(dateStr) {
+            return getHolidayNames()[dateStr] || '';
+        }
+
+        function getHolidayDates() {
+            return Object.keys(getHolidayNames());
+        }
+
+        function isHolidayDate(dateStr) {
+            return Boolean(getHolidayName(dateStr));
+        }
+
+        function updateHolidayTextareaForYear(year) {
+            const textarea = document.getElementById('holidays');
+            if (!textarea) return;
+
+            const manualOnly = textarea.value.split('\n')
+                .map(line => line.trim())
+                .filter(line => {
+                    const holiday = parseManualHolidayLine(line);
+                    if (!holiday) return false;
+                    const fetchedName = holidayNames[holiday.date];
+                    return !holiday.date.startsWith(`${year}-`) || !fetchedName || fetchedName !== holiday.name;
+                });
+
+            const fetchedLines = Object.entries(holidayNames)
+                .filter(([date]) => date.startsWith(`${year}-`))
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([date, name]) => `${formatDateForHolidayInput(date)} ${name}`);
+
+            textarea.value = [...fetchedLines, ...manualOnly].join('\n');
+        }
+
+        async function fetchHolidaysForYear(year) {
+            const response = await fetch(`https://holidays-jp.github.io/api/v1/${year}/date.json`);
+            if (!response.ok) {
+                throw new Error(`祝日APIの取得に失敗しました (${response.status})`);
+            }
+            const data = await response.json();
+            Object.entries(data).forEach(([date, name]) => {
+                holidayNames[date] = name;
+            });
+            saveData();
+            return data;
+        }
+
+        async function ensureHolidayDataForYear(year, updateInput = false) {
+            const hasYearData = Object.keys(holidayNames).some(date => date.startsWith(`${year}-`));
+            if (!hasYearData) {
+                await fetchHolidaysForYear(year);
+            }
+            if (updateInput) {
+                updateHolidayTextareaForYear(year);
+            }
+        }
+
+        async function fetchHolidayDataForSelectedYear() {
+            const year = parseInt(document.getElementById('autoYear').value);
+            const status = document.getElementById('holidayFetchStatus');
+            try {
+                if (status) status.textContent = `${year}年の祝日を取得中...`;
+                await fetchHolidaysForYear(year);
+                updateHolidayTextareaForYear(year);
+                if (status) status.textContent = `${year}年の祝日を取得しました`;
+                displayShiftTable();
+            } catch (error) {
+                console.error(error);
+                if (status) status.textContent = '祝日を取得できませんでした。手入力欄を使ってください';
+                alert('祝日を自動取得できませんでした。ネット接続を確認するか、祝日欄へ手入力してください。');
+            }
         }
 
         // カレンダーを描画
@@ -2065,7 +2181,7 @@
         }
 
         // 自動シフト生成
-        function generateAutoShift() {
+        async function generateAutoShift() {
             if (staff.length === 0) {
                 alert('スタッフを先に登録してください');
                 return;
@@ -2082,11 +2198,14 @@
                 return;
             }
 
-            // 祝日をパース
-            const holidaysText = document.getElementById('holidays').value;
-            const holidays = holidaysText.split('\n')
-                .map(line => parseDateString(line))
-                .filter(d => d !== null);
+            try {
+                await ensureHolidayDataForYear(year, true);
+            } catch (error) {
+                console.error(error);
+                alert('祝日を自動取得できませんでした。手入力欄の祝日だけを使って生成します。');
+            }
+
+            const holidays = getHolidayDates();
 
             const reqTotal = parseInt(document.getElementById('reqTotal').value) || 6;
 
@@ -2652,16 +2771,18 @@
                 const dow       = getDayOfWeek(dateStr);
                 const dayName   = dayNames[dow];
                 const isMonday  = dow === 1;
-                const isWeekend = dow === 0 || dow === 5 || dow === 6;
+                const holidayName = getHolidayName(dateStr);
+                const isWeekend = dow === 0 || dow === 5 || dow === 6 || Boolean(holidayName);
 
                 let rowBg = '';
                 let icon  = '🔵';
                 if (isMonday)       { rowBg = 'background:#fdecea;'; icon = '🔴'; }
                 else if (isWeekend) { rowBg = 'background:#fffde7;'; icon = '🟡'; }
+                const holidayLabel = holidayName ? `<br><small style="color:#d97706; font-size:10px;">${holidayName}</small>` : '';
 
                 html += `<tr>
                     <td style="font-weight:bold; white-space:nowrap; ${rowBg} position:sticky; left:0; z-index:1; border-right:2px solid #dee2e6; font-size:12px;">
-                        ${icon} ${month+1}/${day}(${dayName})
+                        ${icon} ${month+1}/${day}(${dayName})${holidayLabel}
                     </td>`;
 
                 if (isMonday) {
@@ -2721,7 +2842,7 @@
             if (!staffMember) return;
 
             // デフォルト時間（週末・祝日か判定）
-            const holidays = []; // 追加時は祝日判定なしでデフォルト
+            const holidays = getHolidayDates();
             const hours = getShiftHoursForWorkType(dateStr, holidays, staffMember.workType || 'service');
 
             const modal = document.getElementById('shiftEditModal');
@@ -2807,7 +2928,7 @@
         }
 
         // PDF出力
-        function exportPDF() {
+        async function exportPDF() {
             const exportStaff = getStaffByWorkType(currentViewWorkType);
             if (exportStaff.length === 0) {
                 alert(`${getWorkTypeLabel(currentViewWorkType)}スタッフが登録されていません`);
@@ -2823,6 +2944,13 @@
             const month  = parseInt(document.getElementById('viewMonth').value) - 1;
             const period = currentViewPeriod;
             const periodLabel = period === 'first' ? '前半（1〜15日）' : '後半（16日〜月末）';
+
+            try {
+                await ensureHolidayDataForYear(year, true);
+            } catch (error) {
+                console.error(error);
+                alert('祝日を自動取得できませんでした。取得済みまたは手入力の祝日だけを使ってPDFを作成します。');
+            }
 
             let startDay, endDay;
             if (period === 'first') {
@@ -2873,7 +3001,8 @@
                 const dow      = getDayOfWeek(dateStr);
                 const dayName  = dayNames[dow];
                 const isMonday  = dow === 1;
-                const isWeekend = dow === 0 || dow === 5 || dow === 6;
+                const holidayName = getHolidayName(dateStr);
+                const isWeekend = dow === 0 || dow === 5 || dow === 6 || Boolean(holidayName);
 
                 let rowClass = '';
                 let dateLabel = `${month+1}/${day}(${dayName})`;
@@ -2881,7 +3010,8 @@
                 else if (isWeekend) rowClass = 'weekend-row';
 
                 const dateMark = isMonday ? '●' : isWeekend ? '◆' : '';
-                const markedDateLabel = dateMark ? `${dateMark} ${dateLabel}` : dateLabel;
+                const holidayLabel = holidayName ? `<div class="holiday-name">${holidayName}</div>` : '';
+                const markedDateLabel = dateMark ? `${dateMark} ${dateLabel}${holidayLabel}` : `${dateLabel}${holidayLabel}`;
                 let dateTd = `<td class="date-cell">${markedDateLabel}</td>`;
 
                 if (isMonday) {
@@ -2997,6 +3127,12 @@
     white-space:nowrap;
     color:#050b20;
     font-size:15px;
+  }
+  .holiday-name {
+    margin-top:2px;
+    color:#d97706;
+    font-size:10px;
+    line-height:1.1;
   }
   .weekend-row td {
     background:#fff;
