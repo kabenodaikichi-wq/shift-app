@@ -2891,7 +2891,8 @@
                     exportStaff.forEach(s => {
                         const sh = shifts.find(sh => sh.staffId === s.id && sh.date === dateStr && (sh.workType || 'service') === currentViewWorkType);
                         if (sh) {
-                            cells += `<td class="shift-cell">${sh.start}-${sh.end}</td>`;
+                            const shiftClass = sh.start === '17:00' ? 'shift-cell early-shift' : 'shift-cell';
+                            cells += `<td class="${shiftClass}">${sh.start}-${sh.end}</td>`;
                         } else {
                             cells += `<td class="empty-cell">-</td>`;
                         }
@@ -3013,11 +3014,14 @@
     font-size:18px;
   }
   .shift-cell {
-    background:linear-gradient(#edf6ff, #dfeeff);
+    background:#fff;
     color:#000b5c;
     font-weight:900;
     line-height:1.2;
     font-size:15px;
+  }
+  .shift-cell.early-shift {
+    background:linear-gradient(#edf6ff, #dfeeff);
   }
   .empty-cell {
     color:#777;
