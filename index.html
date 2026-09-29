@@ -1494,6 +1494,10 @@
             return workType === 'prep' ? '仕込み' : '通常';
         }
 
+        function makeId() {
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+
         function getStaffByWorkType(workType) {
             return staff.filter(s => (s.workType || 'service') === workType);
         }
@@ -2373,7 +2377,7 @@
 
         function addActualHistory(action, beforeData, afterData, note = '') {
             actualHistory.unshift({
-                id: Date.now() + Math.random(),
+                id: makeId(),
                 action,
                 note,
                 beforeData: beforeData ? JSON.parse(JSON.stringify(beforeData)) : null,
@@ -2419,7 +2423,7 @@
             if (grossMinutes <= 0) return '勤務時間が正しくありません';
             if (breakMinutes >= grossMinutes) return '休憩分が勤務時間以上になっています';
             const duplicate = actualShifts.find(actual =>
-                actual.id !== editId &&
+                String(actual.id) !== String(editId || '') &&
                 actual.staffId === staffId &&
                 actual.date === date &&
                 (actual.workType || 'service') === workType &&
@@ -2439,7 +2443,7 @@
             const breakMinutes = parseInt(document.getElementById('actualBreak').value) || 0;
             const confirmed = document.getElementById('actualConfirmed').value === 'true';
             const workType = document.getElementById('actualWorkType').value;
-            const parsedEditId = editId ? parseFloat(editId) : null;
+            const parsedEditId = editId || null;
 
             if (!staffMember) {
                 alert('スタッフを選択してください');
@@ -2452,10 +2456,10 @@
                 return;
             }
 
-            const existing = parsedEditId ? actualShifts.find(actual => actual.id === parsedEditId) : null;
+            const existing = parsedEditId ? actualShifts.find(actual => String(actual.id) === String(parsedEditId)) : null;
             const before = existing ? JSON.parse(JSON.stringify(existing)) : null;
             const next = {
-                id: existing ? existing.id : Date.now() + Math.random(),
+                id: existing ? existing.id : makeId(),
                 staffId,
                 staffName: staffMember.name,
                 workType,
@@ -2484,7 +2488,7 @@
         }
 
         function editActualEntry(actualId) {
-            const actual = actualShifts.find(item => item.id === actualId);
+            const actual = actualShifts.find(item => String(item.id) === String(actualId));
             if (!actual) return;
             document.getElementById('actualWorkType').value = actual.workType || 'service';
             updateActualStaffSelect();
@@ -2499,7 +2503,7 @@
         }
 
         function cancelActualEntry(actualId) {
-            const actual = actualShifts.find(item => item.id === actualId);
+            const actual = actualShifts.find(item => String(item.id) === String(actualId));
             if (!actual) return;
             if (isActualMonthClosed(actual.date)) {
                 alert(`${actual.date.slice(0, 7)} は給与締め済みのため、実績を取消できません`);
@@ -2517,7 +2521,7 @@
         }
 
         function restoreActualFromHistory(historyId) {
-            const history = actualHistory.find(item => item.id === historyId);
+            const history = actualHistory.find(item => String(item.id) === String(historyId));
             if (!history || !history.beforeData) return;
             const data = JSON.parse(JSON.stringify(history.beforeData));
             if (isActualMonthClosed(data.date)) {
@@ -2563,7 +2567,7 @@
                 );
                 if (exists) return;
                 const candidate = {
-                    id: Date.now() + Math.random(),
+                    id: makeId(),
                     staffId: plan.staffId,
                     staffName: plan.staffName,
                     workType,
@@ -2631,8 +2635,8 @@
                                 </div>
                             </div>
                             <div style="display:flex; gap:8px;">
-                                <button class="btn btn-secondary btn-small" onclick="editActualEntry(${actual.id})">編集</button>
-                                <button class="btn btn-danger btn-small" onclick="cancelActualEntry(${actual.id})">取消</button>
+                                <button class="btn btn-secondary btn-small" onclick="editActualEntry('${actual.id}')">編集</button>
+                                <button class="btn btn-danger btn-small" onclick="cancelActualEntry('${actual.id}')">取消</button>
                             </div>
                         </div>
                     </div>`;
@@ -2648,7 +2652,7 @@
                                     <strong>${history.action}</strong>
                                     <div style="font-size:12px;color:#666;">${new Date(history.createdAt).toLocaleString('ja-JP')} ${history.note || ''}</div>
                                 </div>
-                                ${history.beforeData ? `<button class="btn btn-secondary btn-small" onclick="restoreActualFromHistory(${history.id})">復元</button>` : ''}
+                                ${history.beforeData ? `<button class="btn btn-secondary btn-small" onclick="restoreActualFromHistory('${history.id}')">復元</button>` : ''}
                             </div>
                         </div>
                     `).join('')}`;
@@ -3256,7 +3260,7 @@
                 tsv
             };
             payrollClosures.push({
-                id: Date.now() + Math.random(),
+                id: makeId(),
                 monthKey,
                 status: 'closed',
                 closedAt: new Date().toISOString(),
