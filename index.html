@@ -2422,14 +2422,6 @@
             const grossMinutes = calculateShiftMinutes(start, end);
             if (grossMinutes <= 0) return '勤務時間が正しくありません';
             if (breakMinutes >= grossMinutes) return '休憩分が勤務時間以上になっています';
-            const duplicate = actualShifts.find(actual =>
-                String(actual.id) !== String(editId || '') &&
-                actual.staffId === staffId &&
-                actual.date === date &&
-                (actual.workType || 'service') === workType &&
-                actual.status !== 'cancelled'
-            );
-            if (duplicate) return '同じスタッフ・日付・担当の勤務実績がすでにあります';
             return '';
         }
 
@@ -2450,13 +2442,22 @@
                 return;
             }
 
-            const error = validateActualInput(staffId, date, start, end, breakMinutes, workType, parsedEditId);
+            const sameActuals = actualShifts.filter(actual =>
+                actual.staffId === staffId &&
+                actual.date === date &&
+                (actual.workType || 'service') === workType &&
+                actual.status !== 'cancelled'
+            );
+            const existing = parsedEditId
+                ? actualShifts.find(actual => String(actual.id) === String(parsedEditId))
+                : sameActuals[0] || null;
+            const effectiveEditId = existing ? existing.id : parsedEditId;
+            const error = validateActualInput(staffId, date, start, end, breakMinutes, workType, effectiveEditId);
             if (error) {
                 alert(error);
                 return;
             }
 
-            const existing = parsedEditId ? actualShifts.find(actual => String(actual.id) === String(parsedEditId)) : null;
             const before = existing ? JSON.parse(JSON.stringify(existing)) : null;
             const next = {
                 id: existing ? existing.id : makeId(),
@@ -2480,6 +2481,15 @@
                 actualShifts.push(next);
                 addActualHistory('create_actual', null, next);
             }
+
+            const duplicateActuals = sameActuals.filter(actual => String(actual.id) !== String(next.id));
+            duplicateActuals.forEach(duplicate => {
+                const duplicateBefore = JSON.parse(JSON.stringify(duplicate));
+                duplicate.status = 'cancelled';
+                duplicate.confirmed = false;
+                duplicate.updatedAt = new Date().toISOString();
+                addActualHistory('merge_duplicate_actual', duplicateBefore, duplicate, '重複実績を保存時に統合');
+            });
 
             saveData();
             resetActualForm();
