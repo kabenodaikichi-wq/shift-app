@@ -896,7 +896,9 @@
             <button class="tab" onclick="switchTab('auto')">自動作成</button>
             <button class="tab" onclick="switchTab('shift')">手動登録</button>
             <button class="tab" onclick="switchTab('view')">シフト表示</button>
+            <button class="tab" onclick="switchTab('actual')">実績管理</button>
             <button class="tab" onclick="switchTab('payroll')">給与計算</button>
+            <button class="tab" onclick="switchTab('backup')">バックアップ</button>
         </div>
 
         <div class="content">
@@ -1193,6 +1195,94 @@
                 <div id="shiftTableContainer"></div>
             </div>
 
+            <!-- 実績管理タブ -->
+            <div id="actual" class="tab-content">
+                <h2 style="margin-bottom: 20px; color: #333;">実績管理</h2>
+
+                <div class="alert alert-warning">
+                    <strong>重要:</strong> 給与計算は確認済みの勤務実績だけを使います。予定シフトの再生成・削除では、この実績データは変更されません。
+                </div>
+
+                <div class="payroll-card">
+                    <div class="payroll-controls">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>対象年</label>
+                            <select id="actualYear"></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>対象月</label>
+                            <select id="actualMonth">
+                                <option value="1">1月</option>
+                                <option value="2">2月</option>
+                                <option value="3">3月</option>
+                                <option value="4">4月</option>
+                                <option value="5">5月</option>
+                                <option value="6">6月</option>
+                                <option value="7">7月</option>
+                                <option value="8">8月</option>
+                                <option value="9">9月</option>
+                                <option value="10">10月</option>
+                                <option value="11">11月</option>
+                                <option value="12">12月</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>担当</label>
+                            <select id="actualWorkType">
+                                <option value="service">通常</option>
+                                <option value="prep">仕込み</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="copyPlansToActualCandidates()">予定を実績候補へコピー</button>
+                        <button class="btn btn-primary" onclick="displayActuals()">表示更新</button>
+                    </div>
+                </div>
+
+                <h3 style="margin:20px 0 12px;">実績を登録・訂正</h3>
+                <input type="hidden" id="actualEditId">
+                <div class="payroll-card">
+                    <div class="payroll-controls">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>スタッフ</label>
+                            <select id="actualStaff"></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>勤務日</label>
+                            <input type="date" id="actualDate">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>開始</label>
+                            <input type="time" id="actualStart">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>終了</label>
+                            <input type="time" id="actualEnd">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>休憩（分）</label>
+                            <input type="number" id="actualBreak" min="0" step="1" value="0">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>状態</label>
+                            <select id="actualConfirmed">
+                                <option value="false">未確認候補</option>
+                                <option value="true">確認済み</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="saveActualEntry()">実績を保存</button>
+                        <button class="btn btn-secondary" onclick="resetActualForm()">入力をクリア</button>
+                    </div>
+                </div>
+
+                <div id="actualResult"></div>
+                <div id="actualList" class="shift-list"></div>
+            </div>
+
             <!-- 給与計算タブ -->
             <div id="payroll" class="tab-content">
                 <h2 style="margin-bottom: 20px; color: #333;">給与計算</h2>
@@ -1250,6 +1340,8 @@
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button class="btn btn-primary" onclick="generatePayroll()">給与を計算</button>
                         <button class="btn btn-secondary" onclick="copyPayrollTSV()">TSVをコピー</button>
+                        <button class="btn btn-success" onclick="closePayrollMonth()">この月を締める</button>
+                        <button class="btn btn-secondary" onclick="unlockPayrollMonth()">締めを解除</button>
                     </div>
                 </div>
 
@@ -1260,6 +1352,25 @@
                     <textarea id="payrollTSV" class="tsv-output" readonly placeholder="給与を計算すると、ここにTSVが出力されます"></textarea>
                     <small>そのままスプレッドシートへ貼り付けできます</small>
                 </div>
+            </div>
+
+            <!-- バックアップタブ -->
+            <div id="backup" class="tab-content">
+                <h2 style="margin-bottom: 20px; color: #333;">バックアップ</h2>
+                <div class="alert alert-warning">
+                    <strong>端末故障・ブラウザデータ消去への備え:</strong><br>
+                    スタッフ、予定シフト、勤務実績、締め情報、履歴をJSONで書き出せます。月締め後は必ず外部保存してください。
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+                    <button class="btn btn-primary" onclick="exportBackup()">バックアップを書き出す</button>
+                </div>
+                <div class="form-group">
+                    <label>バックアップから復元</label>
+                    <input type="file" id="backupFile" accept="application/json,.json">
+                    <small>復元前に現在のバックアップを書き出す確認が表示されます。壊れたファイルは読み込みません。</small>
+                </div>
+                <button class="btn btn-secondary" onclick="importBackup()">バックアップから復元</button>
+                <div id="backupResult" style="margin-top:16px;"></div>
             </div>
         </div>
     </div>
@@ -1278,6 +1389,9 @@
     <script>
         let staff = [];
         let shifts = [];
+        let actualShifts = [];
+        let payrollClosures = [];
+        let actualHistory = [];
         let currentDate = new Date();
         let editingStaffId = null;
         let currentViewPeriod = 'first'; // 'first' or 'second'
@@ -1295,6 +1409,9 @@
             const savedStaff = localStorage.getItem('yakitoriStaffV3');
             const savedShifts = localStorage.getItem('yakitoriShiftsV3');
             const savedHolidays = localStorage.getItem('yakitoriHolidayNamesV1');
+            const savedActuals = localStorage.getItem('yakitoriActualShiftsV1');
+            const savedClosures = localStorage.getItem('yakitoriPayrollClosuresV1');
+            const savedHistory = localStorage.getItem('yakitoriActualHistoryV1');
             
             if (savedStaff) {
                 try {
@@ -1320,6 +1437,30 @@
                     holidayNames = {};
                 }
             }
+            if (savedActuals) {
+                try {
+                    actualShifts = JSON.parse(savedActuals);
+                } catch (error) {
+                    console.error('実績データの読み込みに失敗しました:', error);
+                    actualShifts = [];
+                }
+            }
+            if (savedClosures) {
+                try {
+                    payrollClosures = JSON.parse(savedClosures);
+                } catch (error) {
+                    console.error('締めデータの読み込みに失敗しました:', error);
+                    payrollClosures = [];
+                }
+            }
+            if (savedHistory) {
+                try {
+                    actualHistory = JSON.parse(savedHistory);
+                } catch (error) {
+                    console.error('履歴データの読み込みに失敗しました:', error);
+                    actualHistory = [];
+                }
+            }
 
             staff.forEach(s => {
                 if (!s.workType) s.workType = 'service';
@@ -1331,6 +1472,12 @@
                     sh.workType = staffMember?.workType || 'service';
                 }
             });
+            actualShifts.forEach(actual => {
+                if (!actual.workType) actual.workType = 'service';
+                if (actual.breakMinutes === undefined) actual.breakMinutes = 0;
+                if (actual.confirmed === undefined) actual.confirmed = false;
+                if (!actual.status) actual.status = actual.confirmed ? 'confirmed' : 'candidate';
+            });
         }
 
         // データを保存
@@ -1338,6 +1485,9 @@
             localStorage.setItem('yakitoriStaffV3', JSON.stringify(staff));
             localStorage.setItem('yakitoriShiftsV3', JSON.stringify(shifts));
             localStorage.setItem('yakitoriHolidayNamesV1', JSON.stringify(holidayNames));
+            localStorage.setItem('yakitoriActualShiftsV1', JSON.stringify(actualShifts));
+            localStorage.setItem('yakitoriPayrollClosuresV1', JSON.stringify(payrollClosures));
+            localStorage.setItem('yakitoriActualHistoryV1', JSON.stringify(actualHistory));
         }
 
         function getWorkTypeLabel(workType) {
@@ -1596,6 +1746,25 @@
         }
 
         // タブ切り替え
+        function switchTabByName(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.getAttribute('onclick')?.includes(`'${tabName}'`));
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+
+            if (tabName === 'view') {
+                displayShiftTable();
+            } else if (tabName === 'actual') {
+                updateActualStaffSelect();
+                displayActuals();
+            } else if (tabName === 'payroll') {
+                generatePayroll(false);
+            }
+        }
+
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
@@ -1609,6 +1778,9 @@
 
             if (tabName === 'view') {
                 displayShiftTable();
+            } else if (tabName === 'actual') {
+                updateActualStaffSelect();
+                displayActuals();
             } else if (tabName === 'payroll') {
                 generatePayroll(false);
             }
@@ -1680,6 +1852,7 @@
             
             displayStaff();
             updateStaffSelect();
+            updateActualStaffSelect();
             displayShiftTable();
             generatePayroll(false);
         }
@@ -1692,6 +1865,7 @@
                 saveData();
                 displayStaff();
                 updateStaffSelect();
+                updateActualStaffSelect();
                 displayShifts();
                 displayShiftTable();
                 generatePayroll(false);
@@ -1965,6 +2139,7 @@
             saveData();
             displayStaff();
             updateStaffSelect();
+            updateActualStaffSelect();
             displayShifts();
             displayShiftTable();
             generatePayroll(false);
@@ -2180,6 +2355,370 @@
             return `${payDate.getFullYear()}/${payDate.getMonth() + 1}/${payDate.getDate()}`;
         }
 
+        function getMonthKey(year, month) {
+            return `${year}-${String(month + 1).padStart(2, '0')}`;
+        }
+
+        function getActualMonthKeyFromDate(dateStr) {
+            return dateStr.slice(0, 7);
+        }
+
+        function isMonthClosedByKey(monthKey) {
+            return payrollClosures.some(closure => closure.monthKey === monthKey && closure.status === 'closed');
+        }
+
+        function isActualMonthClosed(dateStr) {
+            return isMonthClosedByKey(getActualMonthKeyFromDate(dateStr));
+        }
+
+        function addActualHistory(action, beforeData, afterData, note = '') {
+            actualHistory.unshift({
+                id: Date.now() + Math.random(),
+                action,
+                note,
+                beforeData: beforeData ? JSON.parse(JSON.stringify(beforeData)) : null,
+                afterData: afterData ? JSON.parse(JSON.stringify(afterData)) : null,
+                createdAt: new Date().toISOString()
+            });
+            if (actualHistory.length > 200) {
+                actualHistory = actualHistory.slice(0, 200);
+            }
+        }
+
+        function updateActualStaffSelect() {
+            const select = document.getElementById('actualStaff');
+            if (!select) return;
+            const workType = document.getElementById('actualWorkType')?.value || 'service';
+            const targetStaff = getStaffByWorkType(workType);
+            select.innerHTML = '<option value="">スタッフを選択してください</option>';
+            targetStaff.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.id;
+                option.textContent = s.name;
+                select.appendChild(option);
+            });
+        }
+
+        function resetActualForm() {
+            const ids = ['actualEditId', 'actualDate', 'actualStart', 'actualEnd'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const breakEl = document.getElementById('actualBreak');
+            if (breakEl) breakEl.value = 0;
+            const confirmedEl = document.getElementById('actualConfirmed');
+            if (confirmedEl) confirmedEl.value = 'false';
+        }
+
+        function validateActualInput(staffId, date, start, end, breakMinutes, workType, editId) {
+            if (!staffId || !date || !start || !end) return 'スタッフ、勤務日、開始、終了を入力してください';
+            if (isActualMonthClosed(date)) return `${date.slice(0, 7)} は給与締め済みのため、実績を変更できません`;
+            if (breakMinutes < 0) return '休憩分は0以上で入力してください';
+            const grossMinutes = calculateShiftMinutes(start, end);
+            if (grossMinutes <= 0) return '勤務時間が正しくありません';
+            if (breakMinutes >= grossMinutes) return '休憩分が勤務時間以上になっています';
+            const duplicate = actualShifts.find(actual =>
+                actual.id !== editId &&
+                actual.staffId === staffId &&
+                actual.date === date &&
+                (actual.workType || 'service') === workType &&
+                actual.status !== 'cancelled'
+            );
+            if (duplicate) return '同じスタッフ・日付・担当の勤務実績がすでにあります';
+            return '';
+        }
+
+        function saveActualEntry() {
+            const editId = document.getElementById('actualEditId').value;
+            const staffId = parseInt(document.getElementById('actualStaff').value);
+            const staffMember = staff.find(s => s.id === staffId);
+            const date = document.getElementById('actualDate').value;
+            const start = document.getElementById('actualStart').value;
+            const end = document.getElementById('actualEnd').value;
+            const breakMinutes = parseInt(document.getElementById('actualBreak').value) || 0;
+            const confirmed = document.getElementById('actualConfirmed').value === 'true';
+            const workType = document.getElementById('actualWorkType').value;
+            const parsedEditId = editId ? parseFloat(editId) : null;
+
+            if (!staffMember) {
+                alert('スタッフを選択してください');
+                return;
+            }
+
+            const error = validateActualInput(staffId, date, start, end, breakMinutes, workType, parsedEditId);
+            if (error) {
+                alert(error);
+                return;
+            }
+
+            const existing = parsedEditId ? actualShifts.find(actual => actual.id === parsedEditId) : null;
+            const before = existing ? JSON.parse(JSON.stringify(existing)) : null;
+            const next = {
+                id: existing ? existing.id : Date.now() + Math.random(),
+                staffId,
+                staffName: staffMember.name,
+                workType,
+                date,
+                start,
+                end,
+                breakMinutes,
+                sourceShiftId: existing?.sourceShiftId || null,
+                confirmed,
+                status: confirmed ? 'confirmed' : 'candidate',
+                updatedAt: new Date().toISOString()
+            };
+
+            if (existing) {
+                Object.assign(existing, next);
+                addActualHistory('update_actual', before, existing);
+            } else {
+                actualShifts.push(next);
+                addActualHistory('create_actual', null, next);
+            }
+
+            saveData();
+            resetActualForm();
+            displayActuals();
+            generatePayroll(false);
+        }
+
+        function editActualEntry(actualId) {
+            const actual = actualShifts.find(item => item.id === actualId);
+            if (!actual) return;
+            document.getElementById('actualWorkType').value = actual.workType || 'service';
+            updateActualStaffSelect();
+            document.getElementById('actualEditId').value = actual.id;
+            document.getElementById('actualStaff').value = actual.staffId;
+            document.getElementById('actualDate').value = actual.date;
+            document.getElementById('actualStart').value = actual.start;
+            document.getElementById('actualEnd').value = actual.end;
+            document.getElementById('actualBreak').value = actual.breakMinutes || 0;
+            document.getElementById('actualConfirmed').value = actual.confirmed ? 'true' : 'false';
+            switchTabByName('actual');
+        }
+
+        function cancelActualEntry(actualId) {
+            const actual = actualShifts.find(item => item.id === actualId);
+            if (!actual) return;
+            if (isActualMonthClosed(actual.date)) {
+                alert(`${actual.date.slice(0, 7)} は給与締め済みのため、実績を取消できません`);
+                return;
+            }
+            if (!confirm('この勤務実績を取消しますか？履歴には残ります。')) return;
+            const before = JSON.parse(JSON.stringify(actual));
+            actual.status = 'cancelled';
+            actual.confirmed = false;
+            actual.updatedAt = new Date().toISOString();
+            addActualHistory('cancel_actual', before, actual);
+            saveData();
+            displayActuals();
+            generatePayroll(false);
+        }
+
+        function restoreActualFromHistory(historyId) {
+            const history = actualHistory.find(item => item.id === historyId);
+            if (!history || !history.beforeData) return;
+            const data = JSON.parse(JSON.stringify(history.beforeData));
+            if (isActualMonthClosed(data.date)) {
+                alert(`${data.date.slice(0, 7)} は給与締め済みのため、履歴から復元できません`);
+                return;
+            }
+            const index = actualShifts.findIndex(item => item.id === data.id);
+            if (index >= 0) actualShifts[index] = data;
+            else actualShifts.push(data);
+            addActualHistory('restore_actual', history.afterData, data, '履歴から復元');
+            saveData();
+            displayActuals();
+            generatePayroll(false);
+        }
+
+        function copyPlansToActualCandidates() {
+            const year = parseInt(document.getElementById('actualYear').value);
+            const month = parseInt(document.getElementById('actualMonth').value) - 1;
+            const workType = document.getElementById('actualWorkType').value;
+            const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+            const monthKey = getMonthKey(year, month);
+            if (isMonthClosedByKey(monthKey)) {
+                alert(`${monthKey} は給与締め済みのため、実績候補を追加できません`);
+                return;
+            }
+
+            const plans = shifts.filter(shift =>
+                shift.date.startsWith(monthPrefix) &&
+                (shift.workType || 'service') === workType
+            );
+            if (plans.length === 0) {
+                alert('コピーできる予定シフトがありません');
+                return;
+            }
+
+            let created = 0;
+            plans.forEach(plan => {
+                const exists = actualShifts.some(actual =>
+                    actual.staffId === plan.staffId &&
+                    actual.date === plan.date &&
+                    (actual.workType || 'service') === workType &&
+                    actual.status !== 'cancelled'
+                );
+                if (exists) return;
+                const candidate = {
+                    id: Date.now() + Math.random(),
+                    staffId: plan.staffId,
+                    staffName: plan.staffName,
+                    workType,
+                    date: plan.date,
+                    start: plan.start,
+                    end: plan.end,
+                    breakMinutes: 0,
+                    sourceShiftId: plan.id || null,
+                    confirmed: false,
+                    status: 'candidate',
+                    updatedAt: new Date().toISOString()
+                };
+                actualShifts.push(candidate);
+                addActualHistory('copy_plan_candidate', null, candidate);
+                created += 1;
+            });
+
+            saveData();
+            displayActuals();
+            alert(`${created}件を未確認の実績候補としてコピーしました。内容を確認してから「確認済み」にしてください。`);
+        }
+
+        function getActualRangeSelection() {
+            const year = parseInt(document.getElementById('actualYear').value);
+            const month = parseInt(document.getElementById('actualMonth').value) - 1;
+            const workType = document.getElementById('actualWorkType').value;
+            return { year, month, workType, monthPrefix: `${year}-${String(month + 1).padStart(2, '0')}-` };
+        }
+
+        function displayActuals() {
+            const listEl = document.getElementById('actualList');
+            const resultEl = document.getElementById('actualResult');
+            if (!listEl || !resultEl) return;
+            const { year, month, workType, monthPrefix } = getActualRangeSelection();
+            const monthKey = getMonthKey(year, month);
+            const targetActuals = actualShifts
+                .filter(actual => actual.date.startsWith(monthPrefix) && (actual.workType || 'service') === workType && actual.status !== 'cancelled')
+                .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+            const closed = isMonthClosedByKey(monthKey);
+            const candidates = targetActuals.filter(actual => !actual.confirmed).length;
+
+            resultEl.innerHTML = `
+                <div class="alert ${closed ? 'alert-warning' : 'alert-info'}">
+                    ${monthKey} / ${getWorkTypeLabel(workType)}: 実績 ${targetActuals.length}件、未確認 ${candidates}件、締め状態: ${closed ? '締め済み' : '未締め'}
+                </div>`;
+
+            if (targetActuals.length === 0) {
+                listEl.innerHTML = '<div class="empty-state"><p>勤務実績が登録されていません</p></div>';
+                return;
+            }
+
+            listEl.innerHTML = targetActuals.map(actual => {
+                const statusText = actual.confirmed ? '確認済み' : '未確認候補';
+                const statusColor = actual.confirmed ? '#2e7d32' : '#f57c00';
+                return `
+                    <div class="shift-item">
+                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <div class="shift-info">
+                                <div class="shift-date">${formatDate(actual.date)} - ${actual.staffName}</div>
+                                <div class="shift-details">
+                                    <span class="role-badge">${getWorkTypeLabel(actual.workType || 'service')}</span>
+                                    <span class="time-badge">${actual.start} - ${actual.end}</span>
+                                    <span class="role-badge">休憩 ${actual.breakMinutes || 0}分</span>
+                                    <span class="role-badge" style="background:#fff3e0;color:${statusColor};">${statusText}</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-secondary btn-small" onclick="editActualEntry(${actual.id})">編集</button>
+                                <button class="btn btn-danger btn-small" onclick="cancelActualEntry(${actual.id})">取消</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            if (actualHistory.length > 0) {
+                listEl.innerHTML += `
+                    <h3 style="margin:18px 0 8px;">最近の実績履歴</h3>
+                    ${actualHistory.slice(0, 5).map(history => `
+                        <div class="shift-item" style="background:#fafafa;">
+                            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <div>
+                                    <strong>${history.action}</strong>
+                                    <div style="font-size:12px;color:#666;">${new Date(history.createdAt).toLocaleString('ja-JP')} ${history.note || ''}</div>
+                                </div>
+                                ${history.beforeData ? `<button class="btn btn-secondary btn-small" onclick="restoreActualFromHistory(${history.id})">復元</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}`;
+            }
+        }
+
+        function exportBackup() {
+            const backup = {
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                staff,
+                plannedShifts: shifts,
+                actualShifts,
+                payrollClosures,
+                actualHistory,
+                holidayNames
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `shift-app-backup-${timestamp}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importBackup() {
+            const file = document.getElementById('backupFile').files[0];
+            const resultEl = document.getElementById('backupResult');
+            if (!file) {
+                alert('復元するJSONファイルを選択してください');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    if (!data || !Array.isArray(data.staff) || !Array.isArray(data.plannedShifts)) {
+                        throw new Error('バックアップ形式が正しくありません');
+                    }
+                    const counts = `スタッフ ${data.staff.length}件、予定 ${data.plannedShifts.length}件、実績 ${(data.actualShifts || []).length}件、締め ${(data.payrollClosures || []).length}件`;
+                    if (!confirm(`${counts} を復元します。\n復元前に現在データのバックアップを書き出しますか？`)) return;
+                    exportBackup();
+                    if (!confirm('現在のブラウザ内データをバックアップ内容で置き換えます。続行しますか？')) return;
+
+                    staff = data.staff || [];
+                    shifts = data.plannedShifts || [];
+                    actualShifts = data.actualShifts || [];
+                    payrollClosures = data.payrollClosures || [];
+                    actualHistory = data.actualHistory || [];
+                    holidayNames = data.holidayNames || {};
+                    saveData();
+                    loadData();
+                    displayStaff();
+                    updateStaffSelect();
+                    updateActualStaffSelect();
+                    displayShifts();
+                    displayShiftTable();
+                    displayActuals();
+                    generatePayroll(false);
+                    resultEl.innerHTML = `<div class="alert alert-info">復元しました: ${counts}</div>`;
+                } catch (error) {
+                    console.error(error);
+                    resultEl.innerHTML = `<div class="alert alert-warning">復元できませんでした: ${error.message}</div>`;
+                }
+            };
+            reader.readAsText(file);
+        }
+
         // 自動シフト生成
         async function generateAutoShift() {
             if (staff.length === 0) {
@@ -2267,6 +2806,16 @@
                 }
             }
 
+            const existingPlanCount = shifts.filter(sh => {
+                const [sy, sm, sd] = sh.date.split('-').map(Number);
+                const shMonth = sm - 1;
+                return sy === year && shMonth === month && sd >= startDay && sd <= endDay && (sh.workType || 'service') === workType;
+            }).length;
+            const periodText = period === 'first' ? '前半' : period === 'second' ? '後半' : '全体';
+            if (!confirm(`${year}年${month + 1}月${periodText}の${getWorkTypeLabel(workType)}予定シフトを再生成します。\n置き換え対象の予定: ${existingPlanCount}件\n新規作成予定: ${newShifts.length}件\n勤務実績には触れません。続行しますか？`)) {
+                return;
+            }
+
             // 既存のシフトをその期間だけ削除して新しいものを追加
             shifts = shifts.filter(sh => {
                 const [sy, sm, sd] = sh.date.split('-').map(Number);
@@ -2278,7 +2827,6 @@
             shifts.push(...newShifts);
             saveData();
 
-            const periodText = period === 'first' ? '前半' : period === 'second' ? '後半' : '全体';
             let warningHTML = '';
             if (warnings.length > 0) {
                 warningHTML = `
@@ -2363,7 +2911,13 @@
 
             const periodText = period === 'first' ? '前半' : period === 'second' ? '後半' : '全体';
 
-            if (confirm(`${year}年${month + 1}月${periodText}の${getWorkTypeLabel(workType)}シフトを削除しますか？`)) {
+            const deleteCount = shifts.filter(sh => {
+                const [sy, sm, sd] = sh.date.split('-').map(Number);
+                const shiftMonth = sm - 1;
+                return sy === year && shiftMonth === month && sd >= startDay && sd <= endDay && (sh.workType || 'service') === workType;
+            }).length;
+
+            if (confirm(`${year}年${month + 1}月${periodText}の${getWorkTypeLabel(workType)}予定シフト ${deleteCount}件を削除します。\n勤務実績には触れません。続行しますか？`)) {
                 shifts = shifts.filter(sh => {
                     const [sy, sm, sd] = sh.date.split('-').map(Number);
                     const shiftMonth = sm - 1;
@@ -2375,20 +2929,21 @@
                 displayShiftTable();
                 generatePayroll(false);
                 document.getElementById('autoShiftResult').innerHTML = '';
-                alert('選択期間のシフトを削除しました');
+                alert('選択期間の予定シフトを削除しました。勤務実績は変更していません。');
             }
         }
 
         // 全シフトクリア
         function clearAllShifts() {
-            if (confirm('すべてのシフトを削除しますか？この操作は取り消せません。')) {
+            const deleteCount = shifts.length;
+            if (confirm(`すべての予定シフト ${deleteCount}件を削除します。\n勤務実績には触れません。続行しますか？`)) {
                 shifts = [];
                 saveData();
                 displayShifts();
                 displayShiftTable();
                 generatePayroll(false);
                 document.getElementById('autoShiftResult').innerHTML = '';
-                alert('すべてのシフトを削除しました');
+                alert('すべての予定シフトを削除しました。勤務実績は変更していません。');
             }
         }
 
@@ -2536,15 +3091,30 @@
             const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
             const ledgerDate = formatDateForLedger(year, month);
 
-            const targetShifts = shifts.filter(shift => {
-                if (!shift.date.startsWith(monthPrefix)) return false;
-                if ((shift.workType || 'service') !== workType) return false;
-                const day = parseInt(shift.date.split('-')[2]);
+            const periodActuals = actualShifts.filter(actual => {
+                if (!actual.date.startsWith(monthPrefix)) return false;
+                if ((actual.workType || 'service') !== workType) return false;
+                if (actual.status === 'cancelled') return false;
+                const day = parseInt(actual.date.split('-')[2]);
                 return day >= startDay && day <= endDay;
             });
+            const targetShifts = periodActuals.filter(actual => actual.confirmed);
+            const unconfirmedActuals = periodActuals.filter(actual => !actual.confirmed);
+
+            if (unconfirmedActuals.length > 0) {
+                resultEl.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>未確認の勤務実績があります。</strong><br>
+                        給与計算とTSV出力は確認済み実績だけに限定するため、先に実績管理で確認してください。<br>
+                        ${unconfirmedActuals.slice(0, 10).map(actual => `${formatDate(actual.date)} ${actual.staffName}`).join('<br>')}
+                        ${unconfirmedActuals.length > 10 ? `<br>... 他 ${unconfirmedActuals.length - 10}件` : ''}
+                    </div>`;
+                tsvEl.value = '';
+                return;
+            }
 
             if (targetShifts.length === 0) {
-                resultEl.innerHTML = `<div class="empty-state"><p>${year}年${month + 1}月${periodLabel}の${getWorkTypeLabel(workType)}シフトがありません</p></div>`;
+                resultEl.innerHTML = `<div class="empty-state"><p>${year}年${month + 1}月${periodLabel}の確認済み${getWorkTypeLabel(workType)}実績がありません</p></div>`;
                 tsvEl.value = '';
                 return;
             }
@@ -2565,8 +3135,10 @@
                     };
                 }
 
-                const totalMinutes = calculateShiftMinutes(shift.start, shift.end);
-                const lateNightMinutes = calculateLateNightMinutes(shift.start, shift.end);
+                const grossMinutes = calculateShiftMinutes(shift.start, shift.end);
+                const breakMinutes = shift.breakMinutes || 0;
+                const totalMinutes = Math.max(0, grossMinutes - breakMinutes);
+                const lateNightMinutes = Math.min(calculateLateNightMinutes(shift.start, shift.end), totalMinutes);
                 const regularMinutes = totalMinutes - lateNightMinutes;
                 const staffMember = staff.find(s => s.id === shift.staffId);
                 const transportation = staffMember?.transportationCost || 0;
@@ -2591,7 +3163,7 @@
                     <div class="payroll-summary-item">
                         <strong>対象期間</strong>
                         <span>${year}年${month + 1}月</span>
-                        <div style="margin-top:6px; color:#666; font-size:13px;">${periodLabel} / ${getWorkTypeLabel(workType)}</div>
+                        <div style="margin-top:6px; color:#666; font-size:13px;">${periodLabel} / ${getWorkTypeLabel(workType)} / 確認済み実績</div>
                     </div>
                     <div class="payroll-summary-item">
                         <strong>総支給額</strong>
@@ -2656,6 +3228,71 @@
             });
 
             tsvEl.value = ledgerRows.join('\n');
+        }
+
+        function closePayrollMonth() {
+            const year = parseInt(document.getElementById('payrollYear').value);
+            const month = parseInt(document.getElementById('payrollMonth').value) - 1;
+            const monthKey = getMonthKey(year, month);
+            if (isMonthClosedByKey(monthKey)) {
+                alert(`${monthKey} はすでに締め済みです`);
+                return;
+            }
+
+            generatePayroll(false);
+            const tsv = document.getElementById('payrollTSV').value;
+            if (!tsv.trim()) {
+                alert('締める前に、確認済み実績で給与計算を完了してください');
+                return;
+            }
+
+            if (!confirm(`${monthKey} の給与を締めます。締め後はこの月の実績追加・訂正・取消ができません。続行しますか？`)) return;
+
+            const snapshot = {
+                actualShifts: actualShifts.filter(actual => actual.date.startsWith(`${monthKey}-`) && actual.status !== 'cancelled'),
+                staff,
+                hourlyWage: parseFloat(document.getElementById('hourlyWage').value) || 0,
+                prepHourlyWage: parseFloat(document.getElementById('prepHourlyWage').value) || 0,
+                tsv
+            };
+            payrollClosures.push({
+                id: Date.now() + Math.random(),
+                monthKey,
+                status: 'closed',
+                closedAt: new Date().toISOString(),
+                snapshot
+            });
+            addActualHistory('close_payroll_month', null, { monthKey, snapshot }, '月締め');
+            saveData();
+            displayActuals();
+            generatePayroll(false);
+            alert(`${monthKey} を締めました`);
+        }
+
+        function unlockPayrollMonth() {
+            const year = parseInt(document.getElementById('payrollYear').value);
+            const month = parseInt(document.getElementById('payrollMonth').value) - 1;
+            const monthKey = getMonthKey(year, month);
+            const closure = payrollClosures.find(item => item.monthKey === monthKey && item.status === 'closed');
+            if (!closure) {
+                alert(`${monthKey} は締められていません`);
+                return;
+            }
+            const reason = prompt(`${monthKey} の締めを解除する理由を入力してください`);
+            if (!reason) {
+                alert('解除理由が必要です');
+                return;
+            }
+            if (!confirm(`${monthKey} の締めを解除します。続行しますか？`)) return;
+            const before = JSON.parse(JSON.stringify(closure));
+            closure.status = 'unlocked';
+            closure.unlockedAt = new Date().toISOString();
+            closure.unlockReason = reason;
+            addActualHistory('unlock_payroll_month', before, closure, reason);
+            saveData();
+            displayActuals();
+            generatePayroll(false);
+            alert(`${monthKey} の締めを解除しました`);
         }
 
         function copyPayrollTSV() {
@@ -3212,6 +3849,7 @@
             const autoSelect = document.getElementById('autoYear');
             const viewSelect = document.getElementById('viewYear');
             const payrollSelect = document.getElementById('payrollYear');
+            const actualSelect = document.getElementById('actualYear');
             const currentYear = new Date().getFullYear();
             
             for (let year = currentYear - 1; year <= currentYear + 2; year++) {
@@ -3238,6 +3876,14 @@
                     payrollOption.selected = true;
                 }
                 payrollSelect.appendChild(payrollOption);
+
+                const actualOption = document.createElement('option');
+                actualOption.value = year;
+                actualOption.textContent = `${year}年`;
+                if (year === currentYear) {
+                    actualOption.selected = true;
+                }
+                actualSelect.appendChild(actualOption);
             }
         }
 
@@ -3250,6 +3896,7 @@
         document.getElementById('autoMonth').value = now.getMonth() + 1;
         document.getElementById('viewMonth').value = now.getMonth() + 1;
         document.getElementById('payrollMonth').value = now.getMonth() + 1;
+        document.getElementById('actualMonth').value = now.getMonth() + 1;
         
         // 表示タブの月・年変更時にシフト表を更新
         document.getElementById('viewYear').addEventListener('change', displayShiftTable);
@@ -3261,6 +3908,12 @@
         document.getElementById('payrollWorkType').addEventListener('change', () => generatePayroll(false));
         document.getElementById('hourlyWage').addEventListener('input', () => generatePayroll(false));
         document.getElementById('prepHourlyWage').addEventListener('input', () => generatePayroll(false));
+        document.getElementById('actualYear').addEventListener('change', displayActuals);
+        document.getElementById('actualMonth').addEventListener('change', displayActuals);
+        document.getElementById('actualWorkType').addEventListener('change', () => {
+            updateActualStaffSelect();
+            displayActuals();
+        });
         document.getElementById('shiftWorkType').addEventListener('change', updateStaffSelect);
         document.getElementById('shiftStaff').addEventListener('change', updateManualShiftDefaults);
         document.getElementById('shiftDate').addEventListener('change', updateManualShiftDefaults);
@@ -3268,8 +3921,10 @@
         updateAvailabilityForm();
         displayStaff();
         updateStaffSelect();
+        updateActualStaffSelect();
         displayShifts();
         displayShiftTable();
+        displayActuals();
         generatePayroll(false);
         
         // カレンダーを初期化
