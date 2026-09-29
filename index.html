@@ -2500,6 +2500,10 @@
         function editActualEntry(actualId) {
             const actual = actualShifts.find(item => String(item.id) === String(actualId));
             if (!actual) return;
+            switchTabByName('actual');
+            const [year, month] = actual.date.split('-').map(Number);
+            document.getElementById('actualYear').value = year;
+            document.getElementById('actualMonth').value = month;
             document.getElementById('actualWorkType').value = actual.workType || 'service';
             updateActualStaffSelect();
             document.getElementById('actualEditId').value = actual.id;
@@ -2509,7 +2513,7 @@
             document.getElementById('actualEnd').value = actual.end;
             document.getElementById('actualBreak').value = actual.breakMinutes || 0;
             document.getElementById('actualConfirmed').value = actual.confirmed ? 'true' : 'false';
-            switchTabByName('actual');
+            document.getElementById('actualDate').focus();
         }
 
         function cancelActualEntry(actualId) {
